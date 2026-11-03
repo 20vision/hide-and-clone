@@ -55,6 +55,8 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.server_disconnected.connect(func() -> void:
 		if active and not _is_host(): _quit("The host left the game."))
+	Net.host_gone.connect(func() -> void:
+		if active: _quit("The host left the game."))
 	rig = Node3D.new()
 	add_child(rig)
 	arm = SpringArm3D.new()

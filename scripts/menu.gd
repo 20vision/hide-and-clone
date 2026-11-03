@@ -207,7 +207,7 @@ func _render_maps() -> void:
 				Maps.rename(str(m["id"]), s)
 				_render_maps())
 			row.add_child(name_in)
-			row.add_child(UI.button("X", Color("7a3350"), 14, func() -> void:
+			row.add_child(UI.button("DEL", Color("7a3350"), 13, func() -> void:
 				Maps.delete_map(str(m["id"]))
 				_render_maps()))
 		_map_list.add_child(row)

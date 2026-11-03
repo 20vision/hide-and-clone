@@ -75,6 +75,7 @@ func _get_bytes(rel: String) -> PackedByteArray:
 	var h := HTTPRequest.new()
 	add_child(h)
 	h.timeout = 30.0
+	h.accept_gzip = false
 	if h.request(_base + rel) != OK:
 		h.queue_free()
 		return PackedByteArray()

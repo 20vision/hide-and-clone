@@ -4,6 +4,7 @@ signal lobbies(list: Array)
 signal hosted(code: String)
 signal failed(msg: String)
 signal status(msg: String)
+signal host_gone
 
 var url := "wss://lobby.desk.myclawn.com"
 var ws: WebSocketPeer = null
@@ -131,7 +132,7 @@ func _on_msg(m: Dictionary) -> void:
 			if conns.has(id):
 				if rtc and rtc.has_peer(id): rtc.remove_peer(id)
 				conns.erase(id)
-		"host_left": pass
+		"host_left": host_gone.emit()
 		"sdp":
 			var c: WebRTCPeerConnection = conns.get(int(m["from"]))
 			if c: c.set_remote_description(str(m["type"]), str(m["sdp"]))
