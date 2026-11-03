@@ -16,6 +16,7 @@ var _open := false
 var _pending: Array = []
 var _ping := 0.0
 var _join_deadline := 0.0
+var _graveyard: Array = []
 
 const ICE := {"iceServers": [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]}
 
@@ -70,11 +71,16 @@ func join(c: String) -> void:
 	_send({"t": "join", "code": c.strip_edges().to_upper()})
 
 func leave() -> void:
-	for c: WebRTCPeerConnection in conns.values(): c.close()
-	conns.clear()
-	if rtc: rtc.close()
-	rtc = null
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	if rtc:
+		# Browser events can still arrive after closing, so keep these alive for a while.
+		var old_rtc := rtc
+		var old_conns := conns
+		old_rtc.close()
+		_graveyard.append([old_rtc, old_conns])
+		get_tree().create_timer(20.0).timeout.connect(func() -> void: _graveyard.pop_front())
+	conns = {}
+	rtc = null
 	code = ""
 	is_host = false
 	_join_deadline = 0.0
@@ -99,11 +105,11 @@ func _process(delta: float) -> void:
 			_open = true
 			for o: Dictionary in _pending: ws.send_text(JSON.stringify(o))
 			_pending.clear()
-		while ws.get_available_packet_count() > 0:
+		while ws != null and ws.get_available_packet_count() > 0:
 			var m: Variant = JSON.parse_string(ws.get_packet().get_string_from_utf8())
 			if m is Dictionary: _on_msg(m)
 		_ping += delta
-		if _ping > 25.0:
+		if _ping > 25.0 and ws != null:
 			_ping = 0.0
 			ws.send_text('{"t":"ping"}')
 	elif st == WebSocketPeer.STATE_CLOSED:
