@@ -33,6 +33,10 @@ var _thumb_rects: Dictionary = {}
 var _rmb := false
 var _size := 40.0
 var _floor := "lab"
+var using_pad := false
+var center_mark: Control
+var erase_b: Button
+var top_first: Control
 
 func setup(m: Node, src: Dictionary) -> void:
 	main = m
@@ -118,13 +122,11 @@ func _ui(n: String) -> void:
 	sn.button_pressed = true
 	sn.toggled.connect(func(b: bool) -> void: snap = b)
 	row.add_child(sn)
-	row.add_child(UI.button("UNDO", Color("3a3ea8"), 15, _undo))
-	var er := UI.button("ERASER", Color("7a3350"), 15)
-	er.pressed.connect(func() -> void:
-		erase = not erase
-		er.text = "ERASING" if erase else "ERASER"
-		if erase: _set_ghost(""))
-	row.add_child(er)
+	var undo_b := UI.button("UNDO", Color("3a3ea8"), 15, _undo)
+	row.add_child(undo_b)
+	top_first = undo_b
+	erase_b = UI.button("ERASER", Color("8a2f55"), 15, _toggle_erase)
+	row.add_child(erase_b)
 	row.add_child(UI.button("SAVE", Color("14bf8e"), 15, _save))
 	row.add_child(UI.button("PLAY THIS MAP", Color("ff4f8b"), 18, func() -> void:
 		var m := _save()
@@ -132,7 +134,7 @@ func _ui(n: String) -> void:
 		main.play_host(m, s)))
 	panel_root = UI.panel()
 	panel_root.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	panel_root.offset_top = 72
+	panel_root.offset_top = 100
 	panel_root.offset_bottom = -8
 	panel_root.offset_left = 8
 	panel_root.offset_right = 318
@@ -177,13 +179,20 @@ func _ui(n: String) -> void:
 	info.offset_left = 330
 	info.offset_top = -30
 	info.offset_bottom = -6
-	info.add_theme_constant_override("outline_size", 5)
-	info.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	UI.outlined(info, 7)
 	layer.add_child(info)
+	center_mark = Control.new()
+	center_mark.set_anchors_preset(Control.PRESET_CENTER)
+	center_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center_mark.draw.connect(func() -> void:
+		center_mark.draw_arc(Vector2.ZERO, 12.0, 0.0, TAU, 32, Color(0.07, 0.06, 0.28, 0.8), 5.0, true)
+		center_mark.draw_arc(Vector2.ZERO, 12.0, 0.0, TAU, 32, Color("ffe27a"), 2.5, true))
+	layer.add_child(center_mark)
 	_update_info()
 
 func _update_info() -> void:
-	info.text = "%d objects · Click place · R rotate · [ ] size · Right-drag look · Scroll zoom · WASD move · Ctrl+Z undo" % objects.size()
+	if using_pad: info.text = "%d objects  ·  A place  ·  Y objects  ·  X rotate  ·  LB/RB size  ·  B eraser  ·  View undo  ·  Menu save and play  ·  Triggers zoom" % objects.size()
+	else: info.text = "%d objects  ·  Click place  ·  R rotate  ·  [ ] size  ·  Right-drag look  ·  Scroll zoom  ·  WASD move  ·  Ctrl+Z undo" % objects.size()
 
 func _last_page() -> int: return maxi((filtered.size() - 1) / PAGE, 0)
 
@@ -211,10 +220,14 @@ func _render_grid() -> void:
 		b.tooltip_text = Cat.pretty(id)
 		b.expand_icon = true
 		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		b.add_theme_stylebox_override("normal", UI.style(Color("2a2d82"), 10))
-		b.add_theme_stylebox_override("hover", UI.style(Color("4a4fd0"), 10))
+		b.add_theme_stylebox_override("normal", UI.style(Color("3a6dff"), 12))
+		b.add_theme_stylebox_override("hover", UI.style(Color("6c93ff"), 12))
 		b.add_theme_stylebox_override("pressed", UI.style(Color("ff4f8b"), 10))
-		b.pressed.connect(func() -> void: _set_ghost(id))
+		b.pressed.connect(func() -> void:
+			_set_ghost(id)
+			if using_pad: b.release_focus())
+		var fs := UI.style(Color("4a4fd0"), 10, Color.WHITE, 3)
+		b.add_theme_stylebox_override("focus", fs)
 		grid.add_child(b)
 		_thumb_rects[id] = b
 		Cat.thumb(id)
@@ -242,14 +255,26 @@ func _make_ghost() -> void:
 		ghost.scale = Vector3.ONE * Cat.default_scale(ghost_id) * ghost_scale_mult
 
 func _ray() -> Dictionary:
-	var mp := get_viewport().get_mouse_position()
+	var mp := get_viewport().get_visible_rect().size * 0.5 if using_pad else get_viewport().get_mouse_position()
 	var from := cam.project_ray_origin(mp)
 	var to := from + cam.project_ray_normal(mp) * 700.0
 	var q := PhysicsRayQueryParameters3D.create(from, to, GROUND_LAYERS)
 	return get_world_3d().direct_space_state.intersect_ray(q)
 
 func _over_ui() -> bool:
+	if using_pad: return get_viewport().gui_get_focus_owner() != null
 	return get_viewport().gui_get_hovered_control() != null
+
+func _input(e: InputEvent) -> void:
+	if e is InputEventJoypadButton or (e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.35):
+		if not using_pad:
+			using_pad = true
+			_update_info()
+	elif e is InputEventMouseMotion or e is InputEventMouseButton or e is InputEventKey:
+		if using_pad:
+			using_pad = false
+			if get_viewport().gui_get_focus_owner() == null: pass
+			_update_info()
 
 func _process(delta: float) -> void:
 	cam_tick(delta)
@@ -264,7 +289,46 @@ func _process(delta: float) -> void:
 			ghost.global_position = p
 			ghost.rotation.y = ghost_yaw
 
+func _pad_tick(delta: float) -> void:
+	center_mark.visible = using_pad
+	if not using_pad or Input.get_connected_joypads().is_empty(): return
+	if get_viewport().gui_get_focus_owner() != null: return
+	var l := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
+	if l.length() > 0.18: focus += Basis(Vector3.UP, cam_yaw) * Vector3(l.x, 0, l.y) * delta * cam_dist * 0.8
+	var r := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	if r.length() > 0.18:
+		cam_yaw -= r.x * delta * 2.0
+		cam_pitch = clampf(cam_pitch - r.y * delta * 1.4, -1.45, -0.1)
+	var zoom := Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT) - Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT)
+	if absf(zoom) > 0.1: cam_dist = clampf(cam_dist * (1.0 - zoom * delta * 1.2), 4.0, 200.0)
+
+func _pad_button(b: int) -> void:
+	var focused := get_viewport().gui_get_focus_owner()
+	match b:
+		JOY_BUTTON_Y:
+			if focused: focused.release_focus()
+			elif grid.get_child_count() > 0: (grid.get_child(0) as Control).grab_focus()
+		JOY_BUTTON_START:
+			if focused: focused.release_focus()
+			else: top_first.grab_focus()
+		JOY_BUTTON_B:
+			if focused: focused.release_focus()
+			else: _toggle_erase()
+	if focused: return
+	match b:
+		JOY_BUTTON_A: _click()
+		JOY_BUTTON_X: ghost_yaw += PI / 4.0
+		JOY_BUTTON_LEFT_SHOULDER: _rescale(0.9)
+		JOY_BUTTON_RIGHT_SHOULDER: _rescale(1.1)
+		JOY_BUTTON_BACK: _undo()
+
+func _toggle_erase() -> void:
+	erase = not erase
+	if erase_b: erase_b.text = "ERASING" if erase else "ERASER"
+	if erase: _set_ghost("")
+
 func cam_tick(delta: float) -> void:
+	_pad_tick(delta)
 	if not name_in.has_focus() and not search.has_focus():
 		var v := Vector3.ZERO
 		if Input.is_physical_key_pressed(KEY_W): v.z -= 1
@@ -279,7 +343,9 @@ func cam_tick(delta: float) -> void:
 	cam.global_transform = Transform3D(b, focus + b * Vector3(0, 0, cam_dist))
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventMouseButton:
+	if e is InputEventJoypadButton and e.is_pressed():
+		_pad_button((e as InputEventJoypadButton).button_index)
+	elif e is InputEventMouseButton:
 		var mb := e as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_RIGHT: _rmb = mb.pressed
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed: cam_dist = maxf(cam_dist * 0.9, 4.0)

@@ -9,8 +9,11 @@ var _adv: Control
 var _filter := "all"
 var _selected: Dictionary = {}
 var _map_list: Container
+var _thumbs: Dictionary = {}
 var _refresh_t := 0.0
 var _on_lobbies := false
+var _screen := "home"
+var _focus_id := ""
 
 func setup(m: Node) -> void:
 	main = m
@@ -40,12 +43,17 @@ func on_net_failed(code: String) -> void:
 		"no_link": t = "Couldn't connect to that game."
 	msg_l.text = t
 
+func _unhandled_input(e: InputEvent) -> void:
+	if e.is_action_pressed("ui_cancel") and _screen != "home": _home()
+
 func _clear() -> void:
 	_on_lobbies = false
+	_screen = "other"
 	for c in body.get_children(): c.queue_free()
 
 func _home() -> void:
 	_clear()
+	_screen = "home"
 	var v := UI.vbox(14)
 	v.custom_minimum_size = Vector2(470, 0)
 	v.set_anchors_preset(Control.PRESET_CENTER_LEFT)
@@ -116,22 +124,28 @@ func _show_lobbies(list: Array) -> void:
 	for c in lobby_list.get_children(): c.queue_free()
 	if list.is_empty():
 		lobby_list.add_child(UI.label("No public games right now. Create one and invite a friend!", 18, Color("ffd166")))
-		lobby_list.add_child(UI.button("PLAY NOW WITH BOTS", Color("ff4f8b"), 20, func() -> void:
+		var bots := UI.button("PLAY NOW WITH BOTS", Color("ff4f8b"), 22, func() -> void:
 			var s: Dictionary = main.game.DEFAULTS.duplicate()
-			main.play_host(Maps.builtin[randi() % Maps.builtin.size()], s)))
+			main.play_host(Maps.builtin[randi() % Maps.builtin.size()], s))
+		lobby_list.add_child(bots)
+		bots.grab_focus.call_deferred()
 		return
 	for l: Dictionary in list:
+		var rowp := UI.pill(Color("2a2d82"))
+		rowp.mouse_filter = Control.MOUSE_FILTER_PASS
 		var row := UI.hbox()
+		rowp.add_child(row)
 		var txt := UI.vbox(0)
 		txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		txt.add_child(UI.label(str(l.get("name", "Game")), 20))
+		txt.add_child(UI.label(str(l.get("name", "Game")), 20, Color.WHITE, true))
 		txt.add_child(UI.label("%s · %d/%d players · %s" % [l.get("map", "?"), int(l.get("players", 0)), int(l.get("max", 0)), l.get("phase", "")], 14, Color(0.8, 0.85, 1)))
 		row.add_child(txt)
 		var code := str(l.get("code", ""))
 		var b := UI.button("JOIN", Color("ff4f8b"), 18, func() -> void: main.play_join(code))
 		b.disabled = int(l.get("players", 0)) >= int(l.get("max", 0))
 		row.add_child(b)
-		lobby_list.add_child(row)
+		lobby_list.add_child(rowp)
+		if lobby_list.get_child_count() == 1: b.grab_focus.call_deferred()
 
 func _process(delta: float) -> void:
 	if _on_lobbies:
@@ -145,7 +159,7 @@ func _create() -> void:
 	_clear()
 	msg_l.text = ""
 	var p := UI.panel()
-	p.custom_minimum_size = Vector2(980, 600)
+	p.custom_minimum_size = Vector2(1060, 640)
 	var v := UI.vbox(10)
 	p.add_child(v)
 	v.add_child(UI.label("CREATE GAME", 34, Color.WHITE, true))
@@ -158,7 +172,11 @@ func _create() -> void:
 	v.add_child(tabs)
 	var sc := ScrollContainer.new()
 	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_map_list = UI.vbox(6)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	_map_list = grid
 	_map_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(_map_list)
 	v.add_child(sc)
@@ -182,40 +200,97 @@ func _create() -> void:
 	if _selected.is_empty() and not Maps.all_maps().is_empty(): _selected = Maps.all_maps()[0]
 	_render_maps()
 
+func _thumb_for(m: Dictionary) -> Texture2D:
+	var key := str(m.get("thumb", ""))
+	if key == "": return null
+	if not _thumbs.has(key):
+		var b := FileAccess.get_file_as_bytes("res://maps/%s.thumb" % key)
+		var img := Image.new()
+		if b.is_empty() or img.load_png_from_buffer(b) != OK: _thumbs[key] = null
+		else: _thumbs[key] = ImageTexture.create_from_image(img)
+	return _thumbs[key]
+
+## One card per map: picture, name, details and its actions.
+func _card(m: Dictionary) -> Control:
+	var id := str(m.get("id", ""))
+	var sel: bool = str(_selected.get("id", "")) == id
+	var src := str(m.get("src", "played"))
+	var card := PanelContainer.new()
+	var st := UI.style(Color("2a2d82") if not sel else Color("ff4f8b"), 20, Color("ffc928") if sel else Color(1, 1, 1, 0.12), 4 if sel else 2)
+	st.content_margin_left = 10
+	st.content_margin_right = 10
+	st.content_margin_top = 10
+	st.content_margin_bottom = 10
+	card.add_theme_stylebox_override("panel", st)
+	var v := UI.vbox(7)
+	card.add_child(v)
+	var pick := Button.new()
+	pick.custom_minimum_size = Vector2(0, 118)
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pick.expand_icon = true
+	var tex := _thumb_for(m)
+	pick.icon = tex
+	var floor_col: Color = (World.FLOORS.get(str(m.get("floor", "lab")), World.FLOORS["lab"]) as Array)[0]
+	for k: String in ["normal", "hover", "pressed"]:
+		var bs := UI.style(floor_col, 12)
+		bs.content_margin_left = 2
+		bs.content_margin_right = 2
+		bs.content_margin_top = 2
+		bs.content_margin_bottom = 2
+		pick.add_theme_stylebox_override(k, bs)
+	var fs := UI.style(floor_col, 12, Color.WHITE, 4)
+	fs.content_margin_left = 2
+	fs.content_margin_right = 2
+	fs.content_margin_top = 2
+	fs.content_margin_bottom = 2
+	pick.add_theme_stylebox_override("focus", fs)
+	if tex == null:
+		pick.text = "%d objects" % (m.get("o", []) as Array).size()
+		pick.add_theme_font_override("font", UI.title_font())
+		pick.add_theme_font_size_override("font_size", 18)
+		pick.add_theme_color_override("font_color", Color("1a1b55"))
+	pick.pressed.connect(func() -> void:
+		_selected = m
+		_focus_id = id
+		_render_maps())
+	if id == _focus_id: pick.grab_focus.call_deferred()
+	v.add_child(pick)
+	var nm := UI.label(str(m.get("name", "Map")), 18, Color.WHITE, true)
+	nm.clip_text = true
+	nm.custom_minimum_size = Vector2(190, 0)
+	v.add_child(nm)
+	v.add_child(UI.label("%d objects · %s" % [(m.get("o", []) as Array).size(), {"builtin": "built-in", "mine": "my map", "played": "played"}.get(src, src)], 13, Color(1, 1, 1, 0.8)))
+	var row := UI.hbox(5)
+	var starred: bool = m.get("star", false)
+	row.add_child(UI.button("STARRED" if starred else "STAR", Color("d9a400") if starred else Color("3a3ea8"), 12, func() -> void:
+		Maps.set_star(m, not starred)
+		_render_maps()))
+	row.add_child(UI.button("EDIT", Color("3a3ea8"), 12, func() -> void: main.open_builder(m)))
+	if src != "builtin":
+		row.add_child(UI.button("DEL", Color("8a2f55"), 12, func() -> void:
+			Maps.delete_map(id)
+			_render_maps()))
+	v.add_child(row)
+	if src != "builtin":
+		var name_in := UI.input("Rename", str(m.get("name", "")), 13)
+		name_in.text_submitted.connect(func(s: String) -> void:
+			Maps.rename(id, s)
+			_render_maps())
+		v.add_child(name_in)
+	return card
+
 func _render_maps() -> void:
 	for c in _map_list.get_children(): c.queue_free()
+	var n := 0
 	for m: Dictionary in Maps.all_maps():
 		var src := str(m.get("src", "played"))
 		if _filter == "star" and not m.get("star", false): continue
 		if _filter == "mine" and src != "mine": continue
 		if _filter == "played" and src != "played": continue
-		var row := UI.hbox()
-		var sel: bool = str(_selected.get("id", "")) == str(m.get("id", ""))
-		var pick := UI.button(str(m.get("name", "Map")), Color("ff4f8b") if sel else Color("2a2d82"), 17, func() -> void:
-			_selected = m
-			_render_maps())
-		pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pick.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		row.add_child(pick)
-		row.add_child(UI.label("%d objects · %s" % [(m.get("o", []) as Array).size(), {"builtin": "built-in", "mine": "my map", "played": "played"}.get(src, src)], 14, Color(0.8, 0.85, 1)))
-		var starred: bool = m.get("star", false)
-		row.add_child(UI.button("STARRED" if starred else "STAR", Color("c99a10") if starred else Color("3a3ea8"), 14, func() -> void:
-			Maps.set_star(m, not starred)
-			_render_maps()))
-		row.add_child(UI.button("EDIT", Color("3a3ea8"), 14, func() -> void: main.open_builder(m)))
-		if src != "builtin":
-			var name_in := UI.input("Name", str(m.get("name", "")), 14)
-			name_in.custom_minimum_size = Vector2(150, 0)
-			name_in.text_submitted.connect(func(s: String) -> void:
-				Maps.rename(str(m["id"]), s)
-				_render_maps())
-			row.add_child(name_in)
-			row.add_child(UI.button("DEL", Color("7a3350"), 13, func() -> void:
-				Maps.delete_map(str(m["id"]))
-				_render_maps()))
-		_map_list.add_child(row)
-	if _map_list.get_child_count() == 0:
-		_map_list.add_child(UI.label("Nothing here yet.", 16))
+		_map_list.add_child(_card(m))
+		n += 1
+	if n == 0:
+		_map_list.add_child(UI.label("Nothing here yet.", 18))
 
 func _slider(parent: Container, title: String, key: String, a: float, b: float, step: float, suffix := "") -> void:
 	var row := UI.hbox(6)

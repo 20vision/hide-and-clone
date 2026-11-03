@@ -13,6 +13,7 @@ func _ready() -> void:
 			if m is Dictionary:
 				var c := clean(m)
 				c["src"] = "builtin"
+				c["thumb"] = f
 				builtin.append(c)
 
 static func content_id(m: Dictionary) -> String:
@@ -54,6 +55,7 @@ func remember(m: Dictionary, src := "played") -> Dictionary:
 	c["src"] = old.get("src", src)
 	c["star"] = old.get("star", false)
 	if old.has("name"): c["name"] = old["name"]
+	if m.has("thumb"): c["thumb"] = str(m["thumb"]).validate_filename()
 	c["last"] = Time.get_unix_time_from_system()
 	save_map(c)
 	return c

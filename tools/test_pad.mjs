@@ -1,0 +1,22 @@
+// Plays the whole flow with a simulated Xbox controller and no mouse or keyboard.
+import { createRequire } from 'module';
+const require=createRequire('/home/maslor/projects/p20v-bugs/');
+const {chromium}=require('playwright-core');
+const [base,ws,out]=process.argv.slice(2);
+const args=['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--ignore-gpu-blocklist','--enable-unsafe-swiftshader'];
+const br=await chromium.launch({headless:true,executablePath:'/opt/google/chrome/chrome',args});
+const p=await br.newPage({viewport:{width:1280,height:720}});const errs=[],lg=[];
+p.on('console',m=>{const t=m.text();lg.push(t);if(m.type()==='error'&&!/t\.myclawn|Failed to load/.test(t)){errs.push(t);console.log('ERR',t.slice(0,220))}if(/\[hc\]/.test(t)&&!/ pos /.test(t))console.log(t)});p.on('pageerror',e=>{errs.push(e.message);console.log('PAGEERR',e.message)});
+await p.addInitScript(()=>{const pad={id:'Xbox Wireless Controller (STANDARD GAMEPAD)',index:0,connected:true,mapping:'standard',timestamp:0,axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,touched:false,value:0}))};window.__pad=pad;navigator.getGamepads=()=>[pad,null,null,null];window.addEventListener('load',()=>setTimeout(()=>{const e=new Event('gamepadconnected');e.gamepad=pad;window.dispatchEvent(e)},500));});
+const W=ms=>new Promise(r=>setTimeout(r,ms));const S=n=>p.screenshot({path:`${out}/${n}.png`});
+const B={A:0,B:1,X:2,Y:3,LB:4,RB:5,LT:6,RT:7,VIEW:8,MENU:9,UP:12,DOWN:13,LEFT:14,RIGHT:15};
+const press=async(b,ms=140,after=600)=>{await p.evaluate(([i])=>{const x=window.__pad.buttons[i];x.pressed=true;x.value=1;window.__pad.timestamp++},[B[b]]);await W(ms);await p.evaluate(([i])=>{const x=window.__pad.buttons[i];x.pressed=false;x.value=0;window.__pad.timestamp++},[B[b]]);await W(after)};
+const axis=async(i,v,ms)=>{await p.evaluate(([i,v])=>{window.__pad.axes[i]=v;window.__pad.timestamp++},[i,v]);await W(ms);await p.evaluate(([i])=>{window.__pad.axes[i]=0;window.__pad.timestamp++},[i]);await W(300)};
+await p.goto(`${base}?lobby=${encodeURIComponent(ws)}`);await W(10000);await S('pad_home');
+await press('DOWN');await press('A',140,1500);await S('pad_create');await press('A',140,13000);await S('pad_game');
+await press('Y',140,1200);console.log('started',lg.some(l=>/round 1 start/.test(l)));
+await axis(1,-1,1500);await S('pad_hide');
+await press('X',140,600);console.log('decoy',lg.some(l=>/decoy by/.test(l)));
+await press('VIEW',900,200);
+await press('MENU',140,800);await S('pad_menu');await press('B',140,600);await S('pad_menu_closed');
+console.log('errors',errs.length);await br.close();

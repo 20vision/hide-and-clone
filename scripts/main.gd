@@ -11,6 +11,8 @@ var player_name := "Clone"
 func _ready() -> void:
 	randomize()
 	ThemeDB.fallback_font = UI.body_font()
+	ThemeDB.get_default_theme().merge_with(UI.theme())
+	_pad_actions()
 	player_name = _load_name()
 	hud = CanvasLayer.new()
 	hud.set_script(load("res://scripts/hud.gd"))
@@ -23,10 +25,26 @@ func _ready() -> void:
 	track("clone_open", {})
 	_auto()
 
+## Lets the left stick move through menus, not only the D-pad.
+func _pad_actions() -> void:
+	for a: Array in [["ui_left", JOY_AXIS_LEFT_X, -1.0], ["ui_right", JOY_AXIS_LEFT_X, 1.0], ["ui_up", JOY_AXIS_LEFT_Y, -1.0], ["ui_down", JOY_AXIS_LEFT_Y, 1.0]]:
+		var ev := InputEventJoypadMotion.new()
+		ev.axis = a[1]
+		ev.axis_value = a[2]
+		InputMap.action_add_event(a[0], ev)
+	for a: Array in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B], ["ui_up", JOY_BUTTON_DPAD_UP], ["ui_down", JOY_BUTTON_DPAD_DOWN], ["ui_left", JOY_BUTTON_DPAD_LEFT], ["ui_right", JOY_BUTTON_DPAD_RIGHT]]:
+		var btn := InputEventJoypadButton.new()
+		btn.button_index = a[1]
+		if not InputMap.action_has_event(a[0], btn): InputMap.action_add_event(a[0], btn)
+	InputMap.action_set_deadzone("ui_left", 0.5)
+	InputMap.action_set_deadzone("ui_right", 0.5)
+	InputMap.action_set_deadzone("ui_up", 0.5)
+	InputMap.action_set_deadzone("ui_down", 0.5)
+
 func _load_name() -> String:
 	var t := FileAccess.get_file_as_string("user://name.txt").strip_edges()
 	if t != "": return t.substr(0, 16)
-	return "Clone%03d" % (randi() % 1000)
+	return "Clone %03d" % (randi() % 1000)
 
 func save_name(n: String) -> void:
 	player_name = n.strip_edges().substr(0, 16)
@@ -57,6 +75,9 @@ func _auto() -> void:
 	game.force_role = _qs("force")
 	game.debug = _qs("dbg") == "1"
 	if a == "host":
+		if _qs("nohud") == "1":
+			hud.visible = false
+			game.birdseye = true
 		var s := {"bots": int(_qs("bots")), "autostart": false, "hide_time": 3, "seek_time": 40, "public": true, "max_players": 12}
 		if _qs("vis") != "": s["visibility"] = int(_qs("vis"))
 		if _qs("hide") != "": s["hide_time"] = int(_qs("hide"))

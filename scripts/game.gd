@@ -50,6 +50,10 @@ var _shots: Array[Dictionary] = []
 var _last_sec := 0
 var _host_clock := 0.0
 var _uid := 1
+var _shake := 0.0
+var using_pad := false
+var birdseye := false
+var menu_open := false
 var _slow_t := 0.0
 var _lowered := false
 
@@ -485,14 +489,15 @@ func local_fire() -> void:
 	var body: Variant = r["body"]
 	var target := 0
 	if body is Clone: target = (body as Clone).pid
-	var hand: Vector3 = m.global_position + Vector3(0, 1.2, 0)
-	shot.rpc_id(1, hand, r["to"], target)
+	_shake = 1.0
+	if hud: hud.pop_cross()
+	shot.rpc_id(1, m.wand_tip(), r["to"], target)
 
 func ai_fire(c: Clone, tgt: Clone) -> void:
 	if phase != "seek": return
-	var from := c.global_position + Vector3.UP * 1.2
+	var from := c.wand_tip()
 	var to := tgt.global_position + Vector3.UP * 0.8
-	var q := PhysicsRayQueryParameters3D.create(from, to, 1)
+	var q := PhysicsRayQueryParameters3D.create(c.global_position + Vector3.UP * 1.2, to, 1)
 	if get_world_3d().direct_space_state.intersect_ray(q): return
 	if c.mode == Clone.LOCAL: shot.rpc_id(1, from, to, tgt.pid)
 	else: _apply_shot(c.pid, from, to, tgt.pid)
@@ -511,7 +516,7 @@ func _apply_shot(shooter: int, from: Vector3, to: Vector3, target: int) -> void:
 	var now := Time.get_ticks_msec() / 1000.0
 	if now - float(_host_cool.get(shooter, 0.0)) < float(settings["cooldown"]) * 0.7: return
 	_host_cool[shooter] = now
-	fx_shot.rpc(from, to)
+	fx_shot.rpc(from, to, shooter)
 	if debug: print("[hc] shot by %d at %d" % [shooter, target])
 	if target < 0 and decoys.has(target):
 		decoy_pop.rpc(target)
@@ -533,8 +538,10 @@ func _apply_shot(shooter: int, from: Vector3, to: Vector3, target: int) -> void:
 		_push_state()
 
 @rpc("authority", "call_local", "reliable")
-func fx_shot(from: Vector3, to: Vector3) -> void:
+func fx_shot(from: Vector3, to: Vector3, shooter: int) -> void:
 	FX.beam(self, from, to)
+	var sc: Clone = nodes.get(shooter)
+	if sc: sc.kick()
 	Sfx.play(self, "zap", -8.0)
 
 @rpc("authority", "call_local", "reliable")
@@ -661,28 +668,36 @@ func _auto_quality(delta: float) -> void:
 		if n is DirectionalLight3D: (n as DirectionalLight3D).shadow_enabled = false
 	print("[hc] lowered quality")
 
+func _pad_ok() -> bool: return not Input.get_connected_joypads().is_empty()
+
 func _input_tick() -> void:
 	var m := me()
 	if m == null or m.ai: return
 	var v := Vector2.ZERO
-	if Input.is_physical_key_pressed(KEY_W): v.y -= 1.0
-	if Input.is_physical_key_pressed(KEY_S): v.y += 1.0
-	if Input.is_physical_key_pressed(KEY_A): v.x -= 1.0
-	if Input.is_physical_key_pressed(KEY_D): v.x += 1.0
-	if Input.is_physical_key_pressed(KEY_SPACE): m.want_jump = true
-	v += Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)) * (1.0 if Input.get_connected_joypads().size() > 0 else 0.0)
-	if absf(v.x) < 0.15: v.x = 0.0
-	if absf(v.y) < 0.15: v.y = 0.0
-	m.move_input = v
-	m.yaw_target = _yaw
-	var pads := Input.get_connected_joypads().size() > 0
-	if pads:
+	var blocked := using_pad and menu_open
+	if not blocked:
+		if Input.is_physical_key_pressed(KEY_W): v.y -= 1.0
+		if Input.is_physical_key_pressed(KEY_S): v.y += 1.0
+		if Input.is_physical_key_pressed(KEY_A): v.x -= 1.0
+		if Input.is_physical_key_pressed(KEY_D): v.x += 1.0
+		if Input.is_physical_key_pressed(KEY_SPACE): m.want_jump = true
+	if _pad_ok() and not blocked:
+		var pad := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
+		if pad.length() > 0.18: v += pad
 		var rx := Input.get_joy_axis(0, JOY_AXIS_RIGHT_X)
 		var ry := Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y)
-		if absf(rx) > 0.15: _yaw -= rx * 0.045
-		if absf(ry) > 0.15: _pitch = clampf(_pitch - ry * 0.03, -1.2, 0.6)
-		if Input.is_joy_button_pressed(0, JOY_BUTTON_A): m.want_jump = true
-		if Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT) > 0.5: local_fire()
+		var turn := sens * 17.0
+		if absf(rx) > 0.15: _yaw -= rx * absf(rx) * turn
+		if absf(ry) > 0.15: _pitch = clampf(_pitch - ry * absf(ry) * turn * 0.7, -1.2, 0.6)
+		if Input.is_joy_button_pressed(0, JOY_BUTTON_A) and m.alive: m.want_jump = true
+		if Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT) > 0.4 or Input.is_joy_button_pressed(0, JOY_BUTTON_RIGHT_SHOULDER): local_fire()
+	m.move_input = v
+	m.yaw_target = _yaw
+	m.aim_pitch = _pitch
+
+func _input(e: InputEvent) -> void:
+	if e is InputEventJoypadButton or (e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.35): using_pad = true
+	elif e is InputEventMouseMotion or e is InputEventMouseButton or e is InputEventKey: using_pad = false
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not active: return
@@ -705,9 +720,23 @@ func _unhandled_input(e: InputEvent) -> void:
 		match (e as InputEventJoypadButton).button_index:
 			JOY_BUTTON_X: local_decoy()
 			JOY_BUTTON_Y: request_start_lobby()
-			JOY_BUTTON_START: if hud: hud.toggle_pause()
+			JOY_BUTTON_START, JOY_BUTTON_B: if hud: hud.toggle_pad_menu(e.button_index == JOY_BUTTON_START)
+			JOY_BUTTON_A:
+				var m := me()
+				if m and not m.alive and phase != "lobby": _spec_idx += 1
 
 func _camera_tick(delta: float) -> void:
+	if birdseye:
+		arm.collision_mask = 0
+		arm.spring_length = float(map.get("size", 40)) * 0.62
+		_pitch = -0.82
+		_yaw = 0.6
+		rig.global_position = Vector3.ZERO
+		rig.rotation.y = _yaw
+		arm.rotation.x = _pitch
+		cam.position.x = 0.0
+		if me(): me().visible = false
+		return
 	var m := me()
 	var focus: Clone = m
 	if m and not m.alive and phase != "lobby":
@@ -716,9 +745,11 @@ func _camera_tick(delta: float) -> void:
 			if players[id]["alive"] and nodes.has(id): alive_list.append(nodes[id])
 		if not alive_list.is_empty(): focus = alive_list[_spec_idx % alive_list.size()]
 	if focus: rig.global_position = rig.global_position.lerp(focus.global_position, clampf(delta * 18.0, 0.0, 1.0))
+	_shake = move_toward(_shake, 0.0, delta * 7.0)
 	rig.rotation.y = _yaw
-	arm.rotation.x = _pitch
-	cam.position.x = 0.55
+	arm.rotation.x = _pitch + _shake * _shake * 0.016
+	cam.position.x = 0.62
+	cam.rotation.z = sin(_shake * 14.0) * _shake * 0.006
 	if m: arm.clear_excluded_objects()
 	if m: arm.add_excluded_object(m.get_rid())
 

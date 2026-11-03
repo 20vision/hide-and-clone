@@ -14,6 +14,81 @@ static func body_font() -> Font:
 		_body.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 800}
 	return _body
 
+static var _theme: Theme
+
+## Global look for dropdowns, sliders, checkboxes, scrollbars and tooltips.
+static func theme() -> Theme:
+	if _theme: return _theme
+	var t := Theme.new()
+	t.default_font = body_font()
+	var field := style(Color(1, 1, 1, 0.97), 14)
+	var field_h := style(Color(1, 1, 1), 14, Color("ffc928"), 3)
+	for k: String in ["normal", "pressed", "disabled"]: t.set_stylebox(k, "OptionButton", field)
+	t.set_stylebox("hover", "OptionButton", field_h)
+	t.set_stylebox("focus", "OptionButton", field_h)
+	for k: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: t.set_color(k, "OptionButton", Color("1a1b55"))
+	var pop := style(Color(1, 1, 1), 16)
+	pop.shadow_color = Color(0.02, 0.02, 0.2, 0.4)
+	pop.shadow_size = 12
+	t.set_stylebox("panel", "PopupMenu", pop)
+	t.set_stylebox("hover", "PopupMenu", style(Color("ffc928"), 10))
+	t.set_color("font_color", "PopupMenu", Color("1a1b55"))
+	t.set_color("font_hover_color", "PopupMenu", Color("1a1b55"))
+	t.set_font_size("font_size", "PopupMenu", 16)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(1, 1, 1, 0.22)
+	track.set_corner_radius_all(6)
+	track.content_margin_top = 5
+	track.content_margin_bottom = 5
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color("ffc928")
+	fill.set_corner_radius_all(6)
+	fill.content_margin_top = 5
+	fill.content_margin_bottom = 5
+	t.set_stylebox("slider", "HSlider", track)
+	t.set_stylebox("grabber_area", "HSlider", fill)
+	t.set_stylebox("grabber_area_highlight", "HSlider", fill)
+	var fs := StyleBoxFlat.new()
+	fs.draw_center = false
+	fs.set_border_width_all(2)
+	fs.border_color = Color.WHITE
+	fs.set_corner_radius_all(10)
+	fs.set_expand_margin_all(5)
+	t.set_stylebox("focus", "HSlider", fs)
+	t.set_icon("grabber", "HSlider", _dot(22, Color.WHITE))
+	t.set_icon("grabber_highlight", "HSlider", _dot(24, Color("ffe27a")))
+	t.set_color("font_color", "CheckBox", Color.WHITE)
+	t.set_color("font_hover_color", "CheckBox", Color("ffe27a"))
+	t.set_color("font_pressed_color", "CheckBox", Color.WHITE)
+	t.set_color("font_focus_color", "CheckBox", Color("ffe27a"))
+	t.set_font_size("font_size", "CheckBox", 16)
+	var thin := StyleBoxFlat.new()
+	thin.bg_color = Color(1, 1, 1, 0.1)
+	thin.set_corner_radius_all(6)
+	thin.content_margin_left = 5
+	thin.content_margin_right = 5
+	var grab := StyleBoxFlat.new()
+	grab.bg_color = Color(1, 1, 1, 0.55)
+	grab.set_corner_radius_all(6)
+	t.set_stylebox("scroll", "VScrollBar", thin)
+	t.set_stylebox("grabber", "VScrollBar", grab)
+	t.set_stylebox("grabber_highlight", "VScrollBar", grab)
+	t.set_stylebox("grabber_pressed", "VScrollBar", grab)
+	var tip := style(Color("1b1a6b"), 10)
+	t.set_stylebox("panel", "TooltipPanel", tip)
+	t.set_color("font_color", "TooltipLabel", Color.WHITE)
+	_theme = t
+	return t
+
+static func _dot(size: int, c: Color) -> ImageTexture:
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var r := size * 0.5
+	for y in size:
+		for x in size:
+			var d := Vector2(x + 0.5 - r, y + 0.5 - r).length()
+			img.set_pixel(x, y, Color(c.r, c.g, c.b, clampf(r - d, 0.0, 1.0)))
+	return ImageTexture.create_from_image(img)
+
 static func style(c: Color, r := 18, border := Color(0, 0, 0, 0), bw := 0) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color = c

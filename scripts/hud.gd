@@ -8,7 +8,7 @@ var role: Label
 var hint: Label
 var blind: ColorRect
 var blind_text: Label
-var cross: Label
+var cross: Control
 var board: PanelContainer
 var board_list: VBoxContainer
 var end_panel: PanelContainer
@@ -25,6 +25,11 @@ var _toast_t := 0.0
 var _board_t := 0.0
 var _last_list := ""
 var _fading_end := false
+var first_button: Button
+var play_b: Button
+var pad_menu := false
+var end_timer: Label
+var _cross_kick := 0.0
 
 func build(g: Node) -> void:
 	game = g
@@ -72,10 +77,10 @@ func build(g: Node) -> void:
 	toast_l = UI.outlined(UI.label("", 22, Color("ffffff"), true), 8)
 	toast_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	topbox.add_child(toast_l)
-	cross = UI.outlined(UI.label("+", 36, Color("ffe27a"), true), 6)
+	cross = Control.new()
 	cross.set_anchors_preset(Control.PRESET_CENTER)
-	cross.position = Vector2(-10, -24)
 	cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cross.draw.connect(_draw_cross)
 	root.add_child(cross)
 	hint = UI.label("", 16, Color(1, 1, 1, 0.95))
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
@@ -93,11 +98,11 @@ func build(g: Node) -> void:
 	# player list (hold Tab)
 	board = UI.panel()
 	var bv := UI.vbox(6)
-	bv.add_child(UI.label("PLAYERS", 24, Color("ffc928"), true))
+	bv.add_child(UI.label("PLAYERS", 30, Color("ffc928"), true))
 	board_list = UI.vbox(4)
 	bv.add_child(board_list)
 	board.add_child(bv)
-	board.custom_minimum_size = Vector2(520, 0)
+	board.custom_minimum_size = Vector2(580, 0)
 	var bc2 := UI.center(board)
 	bc2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(bc2)
@@ -106,7 +111,7 @@ func build(g: Node) -> void:
 	end_panel = UI.panel()
 	end_v = UI.vbox(8)
 	end_panel.add_child(end_v)
-	end_panel.custom_minimum_size = Vector2(560, 0)
+	end_panel.custom_minimum_size = Vector2(640, 0)
 	var ec := UI.center(end_panel)
 	ec.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(ec)
@@ -125,9 +130,10 @@ func build(g: Node) -> void:
 		game.request_start()
 		_capture())
 	pv.add_child(start_b)
-	pv.add_child(UI.button("PLAY", Color("3d7bff"), 20, _capture))
+	play_b = UI.button("BACK TO GAME", Color("3d7bff"), 20, _capture)
+	pv.add_child(play_b)
 	var sens_row := UI.hbox()
-	sens_row.add_child(UI.label("Mouse speed", 16))
+	sens_row.add_child(UI.label("Look speed", 16))
 	var sl := HSlider.new()
 	sl.min_value = 0.0008
 	sl.max_value = 0.006
@@ -136,6 +142,7 @@ func build(g: Node) -> void:
 	sl.custom_minimum_size = Vector2(190, 24)
 	sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sl.value_changed.connect(func(v: float) -> void: game.sens = v)
+	first_button = copy_b
 	sens_row.add_child(sl)
 	pv.add_child(sens_row)
 	pv.add_child(UI.button("LEAVE GAME", Color("5a5f9e"), 16, func() -> void: game._quit("")))
@@ -155,7 +162,8 @@ func build(g: Node) -> void:
 	show_game(false)
 
 func _capture() -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if pad_menu: toggle_pad_menu(true)
+	if not game.using_pad: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _copy() -> void:
 	if OS.has_feature("web"):
@@ -180,6 +188,26 @@ func flash_hit() -> void:
 	var tw := create_tween()
 	tw.tween_property(hit_flash, "color:a", 0.0, 0.45)
 
+func pop_cross() -> void: _cross_kick = 1.0
+
+func _draw_cross() -> void:
+	var r := 15.0 + _cross_kick * 12.0
+	var a := Color(0.07, 0.06, 0.28, 0.75)
+	var c := Color("ffe27a")
+	cross.draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, a, 6.0, true)
+	cross.draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, c, 3.0, true)
+	cross.draw_circle(Vector2.ZERO, 4.0, a)
+	cross.draw_circle(Vector2.ZERO, 2.5, Color.WHITE)
+
+func toggle_pad_menu(from_start: bool) -> void:
+	if not pad_menu and not from_start: return
+	pad_menu = not pad_menu
+	game.menu_open = pad_menu
+	if pad_menu:
+		(start_b if start_b.visible else play_b).grab_focus()
+	elif get_viewport().gui_get_focus_owner():
+		get_viewport().gui_get_focus_owner().release_focus()
+
 func toggle_pause() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 
@@ -193,12 +221,28 @@ func on_state(prev: String, now: String) -> void:
 	_last_list = ""
 	_render_end()
 
+func _clone_line(my: Dictionary) -> String:
+	var h := int(my.get("hp", 0))
+	var d := int(my.get("decoys", 0))
+	return "CLONE  ·  %d %s  ·  %d %s" % [h, "hit" if h == 1 else "hits", d, "decoy" if d == 1 else "decoys"]
+
+func _keys(pad_text: String, key_text: String) -> String:
+	return pad_text if game.using_pad else key_text
+
+func _lobby_hint(captured: bool) -> String:
+	var host: bool = game._is_host()
+	if game.using_pad: return "Left stick move  ·  A jump  ·  View players  ·  Menu button menu" + ("  ·  Y start" if host else "")
+	if not captured: return "Click the map to play"
+	return "WASD move  ·  Space jump  ·  Tab players  ·  Esc menu" + ("  ·  Enter start" if host else "")
+
 func _mmss(t: float) -> String:
 	var s := int(ceil(maxf(t, 0.0)))
 	return "%d:%02d" % [s / 60, s % 60]
 
 func tick(delta: float) -> void:
 	_toast_t -= delta
+	_cross_kick = move_toward(_cross_kick, 0.0, delta * 6.0)
+	if cross.visible: cross.queue_redraw()
 	if _toast_t <= 0.0: toast_l.text = ""
 	var phase: String = game.phase
 	var m: Clone = game.me()
@@ -210,8 +254,9 @@ func tick(delta: float) -> void:
 			total += 1
 			if p["alive"]: left += 1
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	var pads := Input.get_connected_joypads().size() > 0
-	pause.get_parent().get_parent().visible = phase != "end" and not captured and (not pads or phase == "lobby")
+	var pad: bool = game.using_pad
+	game.menu_open = pad_menu
+	pause.get_parent().get_parent().visible = phase != "end" and (pad_menu if pad else not captured)
 	code_l.text = ("Invite code: " + Net.code) if Net.code != "" else "Solo game with bots"
 	copy_b.visible = Net.code != ""
 	start_b.visible = game._is_host() and phase == "lobby"
@@ -224,7 +269,7 @@ func tick(delta: float) -> void:
 			top.text = "Starting in %d" % int(ceil(at)) if at >= 0.0 else "Lobby"
 			count.text = "%d player%s" % [game.players.size(), "" if game.players.size() == 1 else "s"]
 			role.text = "Waiting for the host" if not game._is_host() else ""
-			hint.text = ("WASD move · Space jump · Tab players · Esc menu" + (" · Enter start" if game._is_host() else "")) if captured else "Click the map to play"
+			hint.text = _lobby_hint(captured)
 		"hide":
 			top.text = "HIDE " + _mmss(game.time_left)
 			count.text = "%d clone%s hiding" % [total, "" if total == 1 else "s"]
@@ -233,8 +278,8 @@ func tick(delta: float) -> void:
 				role.text = ""
 				hint.text = ""
 			elif my.get("in_round", false):
-				role.text = "CLONE · %d hits · %d decoys" % [int(my.get("hp", 0)), int(my.get("decoys", 0))]
-				hint.text = "Stand still near things to turn to glass · E decoy clone · Tab players"
+				role.text = _clone_line(my)
+				hint.text = "Stand still near things to turn to glass  ·  %s" % _keys("X decoy clone  ·  View players", "E decoy clone  ·  Tab players")
 			else:
 				role.text = "Watching this round"
 				hint.text = ""
@@ -243,22 +288,23 @@ func tick(delta: float) -> void:
 			count.text = "Clones left %d / %d" % [left, total]
 			if not my.get("in_round", false):
 				role.text = "Watching this round"
-				hint.text = "Tab players"
+				hint.text = _keys("View players", "Tab players")
 			elif seeker_me:
 				role.text = "THE ORIGINAL"
-				hint.text = "Click to shoot your wand · Tab players"
+				hint.text = _keys("RT shoot  ·  View players", "Click to shoot your wand  ·  Tab players")
 			elif my.get("alive", false):
-				role.text = "CLONE · %d hits · %d decoys" % [int(my.get("hp", 0)), int(my.get("decoys", 0))]
-				hint.text = "Run or stay still · E decoy clone · Tab players"
+				role.text = _clone_line(my)
+				hint.text = "Run or stay still  ·  %s" % _keys("X decoy clone  ·  View players", "E decoy clone  ·  Tab players")
 			else:
 				role.text = "YOU WERE UN-CLONED"
-				hint.text = "Click to watch another player · Tab players"
+				hint.text = _keys("A watch another player  ·  View players", "Click to watch another player  ·  Tab players")
 		"end":
 			top.text = ""
 			count.text = ""
 			role.text = ""
 			hint.text = ""
 	end_panel.visible = phase == "end"
+	if phase == "end" and is_instance_valid(end_timer): end_timer.text = "Back to lobby in %d" % int(ceil(game.time_left))
 	var holding := Input.is_physical_key_pressed(KEY_TAB) or Input.is_joy_button_pressed(0, JOY_BUTTON_BACK)
 	board.visible = holding and phase != "end"
 	if board.visible: _render_board()
@@ -278,9 +324,9 @@ func _render_board() -> void:
 		var c: Color = game.COLORS[int(p["color"]) % game.COLORS.size()]
 		var dot := ColorRect.new()
 		dot.color = c
-		dot.custom_minimum_size = Vector2(18, 18)
+		dot.custom_minimum_size = Vector2(20, 20)
 		row.add_child(dot)
-		var nm := UI.label(str(p["name"]) + (" (you)" if int(p["id"]) == game.uid() else ""), 18)
+		var nm := UI.label(str(p["name"]) + (" (you)" if int(p["id"]) == game.uid() else ""), 20)
 		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(nm)
 		var st := ""
@@ -299,16 +345,34 @@ func _render_board() -> void:
 		row.add_child(UI.label(st, 16, col))
 		board_list.add_child(row)
 
+func _chip(text: String, c: Color) -> PanelContainer:
+	var p := UI.pill(c)
+	p.add_child(UI.label(text, 18, Color.WHITE))
+	return p
+
+func _names(parent: Container, names: Array, c: Color) -> void:
+	var f := HFlowContainer.new()
+	f.add_theme_constant_override("h_separation", 8)
+	f.add_theme_constant_override("v_separation", 8)
+	if names.is_empty(): f.add_child(UI.label("Nobody", 18, Color(1, 1, 1, 0.7)))
+	for n: Variant in names: f.add_child(_chip(str(n), c))
+	parent.add_child(f)
+
 func _render_end() -> void:
 	for c in end_v.get_children(): c.queue_free()
 	var r: Dictionary = game.result
 	if r.is_empty(): return
 	var side := str(r["side"])
-	end_v.add_child(UI.label("THE CLONES ESCAPED!" if side == "hiders" else "THE ORIGINAL WINS!", 38, Color("ffc928"), true))
-	end_v.add_child(UI.label("Winners", 20, Color("7ae582"), true))
-	var w: Array = r["winners"]
-	end_v.add_child(UI.label(", ".join(PackedStringArray(w)) if not w.is_empty() else "Nobody", 18))
-	var o: Array = r["out"]
-	end_v.add_child(UI.label("Eliminated", 20, Color("ff6b6b"), true))
-	end_v.add_child(UI.label(", ".join(PackedStringArray(o)) if not o.is_empty() else "Nobody", 18))
-	end_v.add_child(UI.label("Made by MyClawn: real AI clones that work for you. Press Esc for the link.", 14, Color(1, 1, 1, 0.75)))
+	var head := UI.outlined(UI.label("THE CLONES ESCAPED!" if side == "hiders" else "THE ORIGINAL WINS!", 42, Color("ffc928"), true), 10, Color("1b1a6b"))
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	end_v.add_child(head)
+	end_v.add_child(UI.label("Winners", 22, Color("7de39a"), true))
+	_names(end_v, r["winners"], Color("149a63"))
+	end_v.add_child(UI.label("Eliminated", 22, Color("ff8fa8"), true))
+	_names(end_v, r["out"], Color("b83a5e"))
+	end_timer = UI.label("", 16, Color(1, 1, 1, 0.85))
+	end_timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	end_v.add_child(end_timer)
+	var by := UI.label("Made by MyClawn: real AI clones that work for you. Open the menu for the link.", 14, Color(1, 1, 1, 0.65))
+	by.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	end_v.add_child(by)
