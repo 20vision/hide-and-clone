@@ -1,0 +1,6 @@
+build/
+web_extra/
+server/node_modules/
+.godot/
+*.import
+fonts_src/
