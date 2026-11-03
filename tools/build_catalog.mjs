@@ -1,6 +1,7 @@
 // Embeds external textures into each CC0 GLB and writes the catalog the game loads.
 import fs from 'fs';import path from 'path';
 const SRC=process.argv[2],OUT=process.argv[3];
+const ALCOHOL=new Set(['cocktail','glass-wine','wine-red','wine-white']); // keeps the age rating clean
 const SKIP=new Set(['blocky-characters','brick-kit','blaster-kit','mini-characters']);
 const SCALE={'furniture-kit':2.4,'nature-kit':2,'food-kit':2,'city-kit-commercial':3,'city-kit-industrial':3,'city-kit-suburban':3,'city-kit-roads':3,'building-kit':2,'modular-buildings':3,'castle-kit':3,'graveyard-kit':2,'survival-kit':3,'fantasy-town-kit':3,'factory-kit':2,'holiday-kit':2,'mini-arcade':2,'mini-arena':2,'mini-dungeon':3,'mini-forest':2,'mini-market':2,'mini-skate':2,'retro-urban-kit':3,'retro-fantasy-kit':3,'platformer-kit':2,'prototype-kit':2,'space-kit':2,'space-station-kit':3,'hexagon-kit':2,'minigolf-kit':2,'tower-defense-kit':2,'car-kit':1.4,'racing-kit':2,'cube-pets':1,'marble-kit':1};
 function align(n){return (n+3)&~3}
@@ -25,5 +26,5 @@ function embed(file){const b=fs.readFileSync(file);const jl=b.readUInt32LE(12);c
 const cat={};let n=0,bytes=0,bad=0;
 for(const k of fs.readdirSync(SRC)){if(SKIP.has(k))continue;const names=[];const seen=new Set();
  (function w(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name);if(e.isDirectory())w(p);else if(e.name.endsWith('.glb')){const nm=e.name.slice(0,-4).replace(/[^A-Za-z0-9_-]/g,'_');if(seen.has(nm))continue;const o=embed(p);if(!o){bad++;continue;}seen.add(nm);fs.mkdirSync(path.join(OUT,'a',k),{recursive:true});fs.writeFileSync(path.join(OUT,'a',k,nm+'.glb'),o);names.push(nm);n++;bytes+=o.length;}}})(path.join(SRC,k));
- if(names.length)cat[k]={s:SCALE[k]||1,n:names.sort()};}
+ const kept=names.filter(n=>!(k==='food-kit'&&ALCOHOL.has(n))).sort();if(kept.length)cat[k]={s:SCALE[k]||1,n:kept};}
 fs.writeFileSync(process.argv[4],JSON.stringify(cat));console.log({models:n,MB:(bytes/1e6).toFixed(0),bad,packs:Object.keys(cat).length});

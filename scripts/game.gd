@@ -679,7 +679,7 @@ func _process(delta: float) -> void:
 
 ## Slow device: turn off shadows and smoothing so the game stays playable.
 func _auto_quality(delta: float) -> void:
-	if _lowered: return
+	if _lowered or OS.get_environment("HC_HQ") != "": return
 	_slow_t = _slow_t + delta if Engine.get_frames_per_second() < 28 else maxf(_slow_t - delta, 0.0)
 	if _slow_t < 6.0 or world == null: return
 	_lowered = true
@@ -716,8 +716,12 @@ func _input_tick() -> void:
 	m.aim_pitch = _pitch
 
 func _input(e: InputEvent) -> void:
-	if e is InputEventJoypadButton or (e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.35): using_pad = true
-	elif e is InputEventMouseMotion or e is InputEventMouseButton or e is InputEventKey: using_pad = false
+	if e is InputEventJoypadButton or (e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.35):
+		using_pad = true
+		if active and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE: Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+	elif e is InputEventMouseMotion or e is InputEventMouseButton or e is InputEventKey:
+		using_pad = false
+		if e is not InputEventKey and Input.mouse_mode == Input.MOUSE_MODE_HIDDEN: Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not active: return

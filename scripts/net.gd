@@ -1,5 +1,5 @@
 extends Node
-## Finds lobbies and sets up direct WebRTC links. The host's browser runs the game.
+## Finds lobbies and sets up direct WebRTC links. The host's game runs the match.
 signal lobbies(list: Array)
 signal hosted(code: String)
 signal failed(msg: String)
@@ -24,6 +24,9 @@ func _ready() -> void:
 	if OS.has_feature("web"):
 		var q := str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('lobby')||''"))
 		if q != "": url = q
+	else:
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--lobby="): url = a.substr(8)
 
 func _ensure_ws() -> void:
 	if ws != null: return
@@ -50,7 +53,7 @@ func host(info: Dictionary) -> void:
 	var d := info.duplicate()
 	d["t"] = "host"
 	_send(d)
-	if OS.has_feature("web"):
+	if OS.has_feature("web") or ClassDB.class_exists("WebRTCLibPeerConnection"):
 		rtc = WebRTCMultiplayerPeer.new()
 		rtc.create_server()
 		multiplayer.multiplayer_peer = rtc

@@ -6,6 +6,7 @@ var hud: CanvasLayer
 var builder: Node3D
 var menu: Control
 var player_name := "Clone"
+var _visit := ""
 
 func _ready() -> void:
 	var beat := Timer.new()
@@ -70,15 +71,42 @@ func platform() -> String:
 	return OS.get_name().to_lower()
 
 func track(ev: String, props: Dictionary) -> void:
-	if not OS.has_feature("web"): return
+	if not OS.has_feature("web"):
+		_track_native(ev, props)
+		return
 	JavaScriptBridge.eval("window.track&&window.track(%s,%s)" % [JSON.stringify(ev), JSON.stringify(props)])
+
+## Same anonymous events as the web build: public endpoint, no key, nothing stored on the device.
+func _track_native(ev: String, props: Dictionary) -> void:
+	if OS.has_feature("editor") or OS.get_environment("HC_NO_TRACK") != "": return
+	if _visit == "": _visit = "%08x%08x" % [randi(), randi()]
+	var scr := DisplayServer.screen_get_size()
+	var body := {"ns": "myclawn", "v": _visit, "lv": "native-1", "ev": [{"id": "%08x%08x%08x" % [randi(), randi(), randi()], "e": ev, "t": int(Time.get_unix_time_from_system() * 1000.0), "h": "app.hide-and-clone", "p": "/" + OS.get_name().to_lower(), "ti": "Hide & Clone", "sw": scr.x, "sh": scr.y, "l": OS.get_locale_language(), "pr": props}]}
+	var system := "Windows NT 10.0; Win64; x64" if OS.has_feature("windows") else "X11; Linux x86_64"
+	var h := HTTPRequest.new()
+	h.timeout = 15.0
+	h.use_threads = true
+	add_child(h)
+	h.request_completed.connect(func(_r: int, _c: int, _h: PackedStringArray, _b: PackedByteArray) -> void: h.queue_free())
+	var headers := PackedStringArray(["Origin: https://20vision.github.io", "Content-Type: text/plain", "User-Agent: Mozilla/5.0 (%s) HideAndClone/1.0" % system])
+	if h.request("https://t.myclawn.com/e", headers, HTTPClient.METHOD_POST, JSON.stringify(body)) != OK: h.queue_free()
+
+func _unhandled_key_input(e: InputEvent) -> void:
+	if OS.has_feature("web") or not e.is_pressed() or e.is_echo(): return
+	var k := e as InputEventKey
+	if k.keycode == KEY_F11 or (k.keycode == KEY_ENTER and k.alt_pressed):
+		var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 func open_site(from: String) -> void:
 	track("clone_site_click", {"from": from})
 	OS.shell_open("https://www.myclawn.com/?utm_source=hide-and-clone&utm_medium=game&utm_content=" + from)
 
 func _qs(k: String) -> String:
-	if not OS.has_feature("web"): return ""
+	if not OS.has_feature("web"):
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--" + k + "="): return a.substr(k.length() + 3)
+		return ""
 	return str(JavaScriptBridge.eval("new URLSearchParams(location.search).get(%s)||''" % JSON.stringify(k)))
 
 ## ?join=CODE opens an invite. ?auto=... is used by the automated tests.

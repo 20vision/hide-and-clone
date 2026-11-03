@@ -170,6 +170,9 @@ func _copy() -> void:
 		var link := str(JavaScriptBridge.eval("location.href.split('?')[0]")) + "?join=" + Net.code
 		JavaScriptBridge.eval("navigator.clipboard&&navigator.clipboard.writeText(%s)" % JSON.stringify(link))
 		toast("Invite link copied!")
+	else:
+		DisplayServer.clipboard_set("https://20vision.github.io/hide-and-clone/?join=" + Net.code)
+		toast("Invite link copied!")
 
 func show_game(on: bool) -> void:
 	root.visible = on

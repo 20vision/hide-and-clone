@@ -16,6 +16,7 @@ var _screen := "home"
 var _focus_id := ""
 var _hero_rect: Control
 var _video_key := ""
+var _native_vid: VideoStreamPlayer
 
 func setup(m: Node) -> void:
 	main = m
@@ -99,6 +100,8 @@ func _home() -> void:
 	v.add_child(row)
 	var site := UI.button("Want a real clone? myclawn.com", Color("8f8cc0"), 14, func() -> void: main.open_site("home"))
 	v.add_child(site)
+	if not OS.has_feature("web"):
+		v.add_child(UI.button("Quit game", Color("8f8cc0"), 14, func() -> void: get_tree().quit()))
 	var c := CenterContainer.new()
 	c.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(c)
@@ -128,12 +131,42 @@ func _home() -> void:
 
 ## The looping hero animation is a real video element laid over its spot on the canvas.
 func _video(on: bool) -> void:
-	if not OS.has_feature("web"): return
+	if not OS.has_feature("web"):
+		_play_native(on)
+		return
 	if on:
 		JavaScriptBridge.eval("""(function(){var v=document.getElementById('hero');if(!v){v=document.createElement('video');v.id='hero';v.src='hero.mp4';v.muted=true;v.loop=true;v.autoplay=true;v.playsInline=true;v.setAttribute('playsinline','');v.style.cssText='position:fixed;pointer-events:none;object-fit:cover;clip-path:inset(0 round 30px);opacity:0;transition:opacity .5s;z-index:5';v.addEventListener('playing',function(){v.style.opacity=1});document.body.appendChild(v);}v.style.display='block';v.play().catch(function(){});})()""")
 		_video_key = ""
 	else:
 		JavaScriptBridge.eval("(function(){var v=document.getElementById('hero');if(v){v.pause();v.style.display='none'}})()")
+
+## Outside the browser the same loop plays from a Theora copy, muted, inside the hero panel.
+func _play_native(on: bool) -> void:
+	if is_instance_valid(_native_vid): _native_vid.queue_free()
+	_native_vid = null
+	if not on or not is_instance_valid(_hero_rect): return
+	var stream := load("res://video/hero.ogv") as VideoStream
+	if stream == null: return
+	var mat := ShaderMaterial.new()
+	mat.shader = Shader.new()
+	mat.shader.code = "shader_type canvas_item; uniform vec2 box = vec2(760.0, 370.0); uniform float radius = 30.0; void fragment() { vec2 q = abs((UV - 0.5) * box) - box * 0.5 + radius; COLOR.a *= 1.0 - smoothstep(-1.0, 0.0, length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - radius); }"
+	var vid := VideoStreamPlayer.new()
+	vid.stream = stream
+	vid.loop = true
+	vid.expand = true
+	vid.volume = 0.0
+	vid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vid.material = mat
+	vid.modulate.a = 0.0
+	UI.full(vid)
+	_hero_rect.add_child(vid)
+	var fit := func() -> void: mat.set_shader_parameter("box", _hero_rect.size)
+	_hero_rect.resized.connect(fit)
+	fit.call()
+	if _hero_rect.get_child_count() > 1: (_hero_rect.get_child(0) as CanvasItem).material = mat
+	vid.play()
+	vid.create_tween().tween_property(vid, "modulate:a", 1.0, 0.5)
+	_native_vid = vid
 
 func _exit_tree() -> void:
 	_video(false)

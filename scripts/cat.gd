@@ -33,7 +33,11 @@ func _ready() -> void:
 		_base = str(JavaScriptBridge.eval("location.href.split('?')[0].replace(/[^/]*$/,'')"))
 	else:
 		_base = OS.get_environment("HC_WEB")
-		if _base == "": _base = ProjectSettings.globalize_path("res://web_extra/")
+		if _base == "" and OS.has_feature("editor"): _base = ProjectSettings.globalize_path("res://web_extra/")
+		if _base == "":
+			# Store builds ship the models in gamedata/ next to the exe; a bare exe downloads them.
+			var local := OS.get_executable_path().get_base_dir() + "/gamedata/"
+			_base = local if DirAccess.dir_exists_absolute(local) else "https://20vision.github.io/hide-and-clone/"
 
 func known(id: String) -> bool: return _known.has(id)
 func loaded(id: String) -> bool: return _tmpl.has(id)
@@ -69,13 +73,14 @@ func _fetch(id: String) -> void:
 	_pump()
 
 func _get_bytes(rel: String) -> PackedByteArray:
-	if not OS.has_feature("web"):
+	if not _base.begins_with("http"):
 		await get_tree().process_frame
 		return FileAccess.get_file_as_bytes(_base + rel)
 	var h := HTTPRequest.new()
 	add_child(h)
 	h.timeout = 30.0
 	h.accept_gzip = false
+	h.use_threads = not OS.has_feature("web")
 	if h.request(_base + rel) != OK:
 		h.queue_free()
 		return PackedByteArray()
