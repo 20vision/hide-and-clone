@@ -202,7 +202,7 @@ func tick(delta: float) -> void:
 	if _toast_t <= 0.0: toast_l.text = ""
 	var phase: String = game.phase
 	var m: Clone = game.me()
-	var my: Dictionary = game.players.get(multiplayer.get_unique_id(), {})
+	var my: Dictionary = game.players.get(game.uid(), {})
 	var total := 0
 	var left := 0
 	for p: Dictionary in game.players.values():
@@ -214,7 +214,7 @@ func tick(delta: float) -> void:
 	pause.get_parent().get_parent().visible = phase != "end" and not captured and (not pads or phase == "lobby")
 	code_l.text = ("Invite code: " + Net.code) if Net.code != "" else "Solo game with bots"
 	copy_b.visible = Net.code != ""
-	start_b.visible = multiplayer.is_server() and phase == "lobby"
+	start_b.visible = game._is_host() and phase == "lobby"
 	var seeker_me := m != null and m.seeker and phase != "lobby" and phase != "end"
 	blind.visible = phase == "hide" and seeker_me
 	cross.visible = seeker_me and phase == "seek" and bool(my.get("alive", false))
@@ -223,8 +223,8 @@ func tick(delta: float) -> void:
 			var at: float = game._start_at
 			top.text = "Starting in %d" % int(ceil(at)) if at >= 0.0 else "Lobby"
 			count.text = "%d player%s" % [game.players.size(), "" if game.players.size() == 1 else "s"]
-			role.text = "Waiting for the host" if not multiplayer.is_server() else ""
-			hint.text = ("WASD move · Space jump · Tab players · Esc menu" + (" · Enter start" if multiplayer.is_server() else "")) if captured else "Click the map to play"
+			role.text = "Waiting for the host" if not game._is_host() else ""
+			hint.text = ("WASD move · Space jump · Tab players · Esc menu" + (" · Enter start" if game._is_host() else "")) if captured else "Click the map to play"
 		"hide":
 			top.text = "HIDE " + _mmss(game.time_left)
 			count.text = "%d clone%s hiding" % [total, "" if total == 1 else "s"]
@@ -280,7 +280,7 @@ func _render_board() -> void:
 		dot.color = c
 		dot.custom_minimum_size = Vector2(18, 18)
 		row.add_child(dot)
-		var nm := UI.label(str(p["name"]) + (" (you)" if int(p["id"]) == multiplayer.get_unique_id() else ""), 18)
+		var nm := UI.label(str(p["name"]) + (" (you)" if int(p["id"]) == game.uid() else ""), 18)
 		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(nm)
 		var st := ""

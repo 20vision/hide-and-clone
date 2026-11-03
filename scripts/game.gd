@@ -49,6 +49,9 @@ var _spec_idx := 0
 var _shots: Array[Dictionary] = []
 var _last_sec := 0
 var _host_clock := 0.0
+var _uid := 1
+var _slow_t := 0.0
+var _lowered := false
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer)
@@ -75,8 +78,15 @@ func _ready() -> void:
 	set_process(false)
 	set_physics_process(false)
 
-func _is_host() -> bool: return multiplayer.is_server()
-func me() -> Clone: return nodes.get(multiplayer.get_unique_id()) as Clone
+func _is_host() -> bool: return Net.is_host or Net.rtc == null
+
+## Own player id. Stays valid for a moment after the link to the host drops.
+func uid() -> int:
+	var p := multiplayer.multiplayer_peer
+	if p and p.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED: _uid = p.get_unique_id()
+	return _uid
+
+func me() -> Clone: return nodes.get(uid()) as Clone
 func visibility() -> float: return clampf(float(settings.get("visibility", 12)) / 100.0, 0.0, 1.0)
 
 func is_hiding_look(c: Clone) -> bool:
@@ -98,7 +108,7 @@ func host_game(m: Dictionary, s: Dictionary, name_: String) -> void:
 	map = Maps.remember(m, str(m.get("src", "played")))
 	Net.host(_lobby_info())
 	_enter()
-	var id := multiplayer.get_unique_id()
+	var id := uid()
 	players.clear()
 	players[id] = _new_player(id, my_name, false)
 	for i in int(settings["bots"]): _add_bot(i)
@@ -263,6 +273,9 @@ func _build_world() -> void:
 			world.add_child(b)
 			_props.append(b.position)
 	_map_ready = true
+	if _lowered:
+		for n in world.get_children():
+			if n is DirectionalLight3D: (n as DirectionalLight3D).shadow_enabled = false
 	if hud: hud.set_loading(1, 1)
 	for id: int in nodes:
 		var c: Clone = nodes[id]
@@ -413,7 +426,7 @@ func apply_state(s: Dictionary) -> void:
 	result = s["result"]
 	_start_at = s["start_at"]
 	_sync_nodes()
-	var my_id := multiplayer.get_unique_id()
+	var my_id := uid()
 	for id: int in players:
 		var p: Dictionary = players[id]
 		var c: Clone = nodes.get(id)
@@ -434,7 +447,7 @@ func apply_state(s: Dictionary) -> void:
 	if hud: hud.on_state(prev_phase, phase)
 
 func _sync_nodes() -> void:
-	var my_id := multiplayer.get_unique_id()
+	var my_id := uid()
 	for id: int in nodes.keys():
 		if not players.has(id):
 			(nodes[id] as Node).queue_free()
@@ -530,7 +543,7 @@ func fx_hit(id: int) -> void:
 	if c:
 		FX.splash(self, c.global_position + Vector3.UP * 0.8, COLORS[int(players[id]["color"]) % COLORS.size()], 12)
 		Sfx.play(self, "pop", -4.0)
-		if id == multiplayer.get_unique_id() and hud: hud.flash_hit()
+		if id == uid() and hud: hud.flash_hit()
 
 @rpc("authority", "call_local", "reliable")
 func fx_elim(id: int, by: String) -> void:
@@ -609,6 +622,10 @@ func nearest_seeker(c: Clone, r: float) -> Clone:
 # ---------- every frame -------------------------------------------------------
 func _process(delta: float) -> void:
 	if not active: return
+	if not _is_host() and multiplayer.multiplayer_peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED and _map_ready:
+		_quit("The host left the game.")
+		return
+	_auto_quality(delta)
 	if _is_host(): _host_tick(delta)
 	elif phase != "lobby": time_left = maxf(time_left - delta, 0.0)
 	_cool = maxf(_cool - delta, 0.0)
@@ -632,6 +649,17 @@ func _process(delta: float) -> void:
 		if sec != _last_sec and sec > 0: Sfx.play(self, "tick", -10.0)
 		_last_sec = sec
 	if hud: hud.tick(delta)
+
+## Slow device: turn off shadows and smoothing so the game stays playable.
+func _auto_quality(delta: float) -> void:
+	if _lowered: return
+	_slow_t = _slow_t + delta if Engine.get_frames_per_second() < 28 else maxf(_slow_t - delta, 0.0)
+	if _slow_t < 6.0 or world == null: return
+	_lowered = true
+	get_viewport().msaa_3d = Viewport.MSAA_DISABLED
+	for n in world.get_children():
+		if n is DirectionalLight3D: (n as DirectionalLight3D).shadow_enabled = false
+	print("[hc] lowered quality")
 
 func _input_tick() -> void:
 	var m := me()
@@ -716,7 +744,7 @@ func pose(p: Vector3, yaw: float) -> void:
 
 @rpc("authority", "unreliable_ordered")
 func poses(a: PackedFloat32Array) -> void:
-	var my_id := multiplayer.get_unique_id()
+	var my_id := uid()
 	for i in range(0, a.size(), 5):
 		var id := int(a[i])
 		if id == my_id: continue
