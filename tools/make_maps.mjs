@@ -7,18 +7,16 @@ const S=id=>cat[id.split('/')[0]].s;
 const O=(id,x,z,yaw=0,s=1,y=0)=>[has(id),+x.toFixed(2),+y.toFixed(2),+z.toFixed(2),+yaw.toFixed(3),+(S(id)*s).toFixed(3)];
 const Q=[0,Math.PI/2,Math.PI,-Math.PI/2];
 const f=n=>'furniture-kit/'+n, sk=n=>'survival-kit/'+n, fa=n=>'factory-kit/'+n, sp=n=>'space-station-kit/'+n, na=n=>'nature-kit/'+n, sb=n=>'city-kit-suburban/'+n, ro=n=>'city-kit-roads/'+n, cm=n=>'city-kit-commercial/'+n, ca=n=>'car-kit/'+n;
-// ---- Cozy House: four rooms with doorways and real furniture
-function room(o,x0,z0,w,h,doors={}){const U=2.4;
- const seg=(id,x,z,yaw)=>o.push(O(f(id),x,z,yaw));
- for(let i=0;i<w;i++){seg(doors.n===i?'wallDoorway':(i%3==1?'wallWindow':'wall'),x0+i*U,z0,0);seg(doors.s===i?'wallDoorway':'wall',x0+i*U,z0+h*U,0);}
- for(let i=0;i<h;i++){seg(doors.w===i?'wallDoorway':'wall',x0,z0+i*U,-Math.PI/2);seg(doors.e===i?'wallDoorway':'wall',x0+w*U,z0+i*U,-Math.PI/2);}}
-const house=[];
-room(house,-12,-12,5,4,{s:2,e:2});room(house,0,-12,5,4,{s:2,w:1});room(house,-12,-2.4,5,5,{e:2});room(house,0,-2.4,5,5,{w:2,s:2});
+// ---- Cozy House: one shared wall grid, four rooms in a ring (no dead ends), front and back door
+const house=[];const U=2.4,N=10;
+const hw=(z,doors)=>{for(let i=0;i<N;i++)house.push(O(f(doors.includes(i)?'wallDoorwayWide':(z!==0&&i%3==1?'wallWindow':'wall')),-12+i*U,z,0));};
+const vw=(x,doors)=>{for(let j=0;j<N;j++)house.push(O(f(doors.includes(j)?'wallDoorwayWide':(x!==0&&j%3==1?'wallWindow':'wall')),x,-12+j*U,-Math.PI/2));};
+hw(-12,[4]);hw(0,[2,7]);hw(12,[2]);vw(-12,[]);vw(0,[2,7]);vw(12,[]);
 const put=(l)=>l.forEach(a=>house.push(O(f(a[0]),a[1],a[2],a[3]||0,a[4]||1)));
-put([['rugRectangle',-8,-8],['loungeSofaLong',-10.5,-10.8],['tableCoffee',-8.5,-8.4],['cabinetTelevision',-8,-3.4,Math.PI],['televisionModern',-8,-3.4,Math.PI],['lampRoundFloor',-11,-3.5],['bookcaseClosedWide',-3.4,-11.5],['pottedPlant',-3,-4],['loungeChair',-4.4,-7,-Math.PI/2],['cardboardBoxClosed',-11,-6.5],
-['kitchenCabinet',1,-11.2],['kitchenCabinet',3.4,-11.2],['kitchenStove',5.8,-11.2],['kitchenSink',8.2,-11.2],['kitchenFridgeLarge',10.3,-11.2],['tableRound',5.6,-6.5],['chair',4,-6.5,-Math.PI/2],['chair',7.4,-6.5,Math.PI/2],['chair',5.6,-4.7,Math.PI],['kitchenBar',1.2,-6.2,Math.PI/2],['coatRackStanding',11,-4],
-['bedDouble',-10.8,1.2],['sideTableDrawers',-11.2,-1.3],['lampRoundTable',-11.2,-1.3],['rugRound',-6,5],['bookcaseOpen',-3.4,-1.6],['deskCorner',-11,7.5,Math.PI/2],['chairDesk',-9,7],['computerScreen',-10.8,7.4],['cardboardBoxOpen',-3,8.8],['bear',-5.8,4.8],
-['bathtub',1,-1.4],['shower',10,-1.4],['bathroomSink',6,-1.6],['bathroomCabinet',3.8,-1.6],['rugSquare',5.5,3],['washer',1.2,8.5],['dryer',3.6,8.5],['plantSmall1',11,8.6],['loungeDesignSofa',7,8.2,Math.PI],['benchCushion',1,4,Math.PI/2]]);
+put([['rugRectangle',-8,-8],['loungeSofaLong',-10.5,-10.8],['tableCoffee',-8.5,-8.4],['cabinetTelevision',-10,-1.2,Math.PI],['televisionModern',-10,-1.2,Math.PI],['lampRoundFloor',-11.4,-3],['bookcaseClosedWide',-6,-11.5],['pottedPlant',-1.2,-1.2],['loungeChair',-3.6,-9,-Math.PI/2],['cardboardBoxClosed',-11,-6.5],
+['kitchenCabinet',1,-11.2],['kitchenCabinet',3.4,-11.2],['kitchenStove',5.8,-11.2],['kitchenSink',8.2,-11.2],['kitchenFridgeLarge',10.3,-11.2],['tableRound',6.6,-6.5],['chair',5,-6.5,-Math.PI/2],['chair',8.4,-6.5,Math.PI/2],['chair',6.6,-4.7,Math.PI],['kitchenBar',1.2,-2.4,Math.PI/2],['coatRackStanding',11,-1.4],
+['bedDouble',-10.8,3.6],['sideTableDrawers',-11.2,1.1],['lampRoundTable',-11.2,1.1],['rugRound',-6,7.4],['bookcaseOpen',-2.4,.8],['deskCorner',-11,9.9,Math.PI/2],['chairDesk',-9,9.4],['computerScreen',-10.8,9.8],['cardboardBoxOpen',-1.6,11],['bear',-5.8,7.2],
+['bathtub',1,1],['shower',10,1],['bathroomSink',9,.8],['bathroomCabinet',3,.8],['rugSquare',5.5,5.4],['washer',1.2,10.9],['dryer',3.6,10.9],['plantSmall1',11,11],['loungeDesignSofa',7,10.6,Math.PI],['benchCushion',10.6,6,Math.PI/2]]);
 // ---- Tiny Town: two streets, houses facing them, gardens and parked cars
 const town=[];const T=8;
 for(let i=-4;i<=4;i++){if(i===0)continue;town.push(O(ro('road-straight'),i*T,0,Math.PI/2,2.67));town.push(O(ro('road-straight'),0,i*T,0,2.67));}

@@ -110,6 +110,7 @@ func _flatten_metal(n: Node) -> void:
 				mat.roughness = 1.0
 				var c := mat.albedo_color
 				if c.g > 0.7 and c.b > 0.6 and c.r < 0.6: mat.albedo_color = Color(0.36, 0.7, 0.27) if c.g > 0.85 else Color(0.27, 0.58, 0.25)
+				elif c.r > 0.9 and c.g > 0.9 and c.b > 0.85: mat.albedo_color = Color(c.r * 0.97, c.g * 0.92, c.b * 0.83)  # pure white blows out in the sun
 	for c in n.get_children(): _flatten_metal(c)
 
 func _collect(n: Node, x: Transform3D, out: PackedVector3Array) -> void:

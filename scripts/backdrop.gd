@@ -24,6 +24,7 @@ func start() -> void:
 		var c := Clone.new()
 		var col := order[i]
 		c.setup(-100 - i, Clone.DECOY, self, CREW[col], ["ROBIN", "ALEX", "NOVA", "PIXEL"][i], i)
+		c.body_scale = 1.0
 		add_child(c)
 		c.teleport(spots[[0, 1, 2, 4][i]], yaws[[0, 1, 2, 4][i]])
 		if i == 1: c.wave_mode = true

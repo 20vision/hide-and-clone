@@ -4,6 +4,7 @@ class_name Clone extends CharacterBody3D
 enum {LOCAL, REMOTE, BOT, DECOY}
 const SPEED := 6.2
 const JUMP := 7.2
+const STEPS: Array[float] = [0.12, 0.24, 0.36, 0.46]
 const GRAV := 20.0
 const SHADER := """
 shader_type spatial;
@@ -222,6 +223,19 @@ var _fidget := 0.0
 var _fidget_t := 2.0 + randf() * 5.0
 var _eye_mode := -1
 var _bot_goal := Vector3.ZERO
+var body_scale := 0.82  # the whole figure fits inside its collider, ears and hands included
+var _step_off := 0.0
+var _step_cool := 0.0
+var _tuck := 0.0
+var _route := PackedVector3Array()
+var _route_i := 0
+var _route_goal := Vector3.ZERO
+var _route_t := 0.0
+var _stuck_t := 0.0
+var _stuck_pos := Vector3.ZERO
+var _shadow_mat: ShaderMaterial
+var _pieces: Array[MeshInstance3D] = []
+var _casting := true
 var _bot_t := 0.0
 var _bot_fire := 0.0
 
@@ -236,10 +250,15 @@ func setup(id: int, m: int, g: Node, color: Color, shown_name: String, skin := 0
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.5
-	cap.height = 1.78
+	cap.height = 1.5
 	cs.shape = cap
-	cs.position.y = 0.89
+	cs.position.y = 0.75
 	add_child(cs)
+	safe_margin = 0.015
+	floor_snap_length = 0.25
+	floor_max_angle = deg_to_rad(50.0)
+	floor_constant_speed = true
+	wall_min_slide_angle = 0.0
 	_build(shown_name)
 
 static func _load_parts(path: String) -> Dictionary:
@@ -305,11 +324,13 @@ func _piece(part_name: String, parent: Node3D) -> Node3D:
 	hi.material_override = m
 	hi.visibility_range_end = 15.0
 	n.add_child(hi)
+	_pieces.append(hi)
 	var lo := MeshInstance3D.new()
 	lo.mesh = _meshes["lo"][part_name]
 	lo.material_override = m
 	lo.visibility_range_begin = 15.0
 	n.add_child(lo)
+	_pieces.append(lo)
 	return n
 
 func _halo(parent: Node3D, pos: Vector3, size: float, power: float) -> void:
@@ -370,6 +391,7 @@ func _build(shown_name: String) -> void:
 	var fg := _floor_quad(FLOOR_GLOW, 2.0, 0.24, 0.016)
 	_halos.append(fg)
 	var sm := _contact_shadow()
+	_shadow_mat = sm
 	var smi := MeshInstance3D.new()
 	var sp := PlaneMesh.new()
 	sp.size = Vector2(1.7, 1.7)
@@ -394,7 +416,7 @@ func _build(shown_name: String) -> void:
 	_label = Label3D.new()
 	_label.text = shown_name
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.position.y = 2.1
+	_label.position.y = 1.78
 	_label.font_size = 42
 	_label.pixel_size = 0.0055
 	_label.font = UI.body_font()
@@ -535,11 +557,27 @@ func _walk(delta: float) -> void:
 	velocity.x = lerpf(velocity.x, v.x, clampf(delta * 12.0, 0.0, 1.0))
 	velocity.z = lerpf(velocity.z, v.z, clampf(delta * 12.0, 0.0, 1.0))
 	move_and_slide()
+	_step_cool -= delta
+	if _step_cool <= 0.0 and dir.length() > 0.1 and is_on_floor() and is_on_wall():
+		_step_cool = 0.1
+		_try_step(dir.normalized())
 	if mode == LOCAL and wand_ready() and not ai:
 		rotation.y = lerp_angle(rotation.y, yaw_target, clampf(delta * 18.0, 0.0, 1.0))
 	elif dir.length() > 0.1:
 		rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), clampf(delta * 12.0, 0.0, 1.0))
 	if global_position.y < -20.0: global_position = Vector3(0, 3, 0)
+
+## Walks up rugs, curbs and other low edges instead of snagging on them.
+func _try_step(dir: Vector3) -> void:
+	for h: float in STEPS:
+		var t := global_transform
+		if test_move(t, Vector3.UP * h): return
+		t.origin.y += h
+		if test_move(t, dir * 0.14): continue
+		global_position += Vector3.UP * h + dir * 0.06
+		_step_off += h
+		_prev_y += h
+		return
 
 func _spring(x: Vector3, v: Vector3, target: Vector3, k: float, damp: float, dt: float) -> Array:
 	var nv := v + ((target - x) * k - v * damp) * dt
@@ -592,8 +630,9 @@ func _process(delta: float) -> void:
 	if celebrating:
 		cheer = absf(sin(_t * 5.2))
 		bob += cheer * 0.42
-	_visual.position = Vector3(s * 0.035 * run + sin(_t * 0.9) * 0.012 * (1.0 - run), bob + _land * 0.25, 0.0)
-	_visual.scale = Vector3(1.0 - squash * 0.65, 1.0 + squash, 1.0 - squash * 0.65)
+	_step_off = move_toward(_step_off, 0.0, dt * 2.6)
+	_visual.position = Vector3(s * 0.035 * run + sin(_t * 0.9) * 0.012 * (1.0 - run), bob + _land * 0.25 - _step_off, 0.0)
+	_visual.scale = Vector3(1.0 - squash * 0.65, 1.0 + squash, 1.0 - squash * 0.65) * body_scale
 	_visual.rotation = Vector3(0.0, 0.0, _bank)
 	# torso leads the motion
 	var lean := -0.25 * run - 0.1 * _air * signf(_vy + 0.001) * 0.0
@@ -621,8 +660,10 @@ func _process(delta: float) -> void:
 		a_l = Vector3(0.0, 0.0, -2.4 - sin(_t * 10.4) * 0.3)
 		a_r = Vector3(0.0, 0.0, 2.4 + sin(_t * 10.4) * 0.3)
 	if wand_ready():
-		a_r = Vector3(1.15 + aim_pitch * 0.75 + back * 0.85, 0.0, 0.08)
-		var want := Basis.from_euler(Vector3(deg_to_rad(-48.0 + aim_pitch * 30.0 + back * 40.0), 0.0, deg_to_rad(-15.0)))
+		_tuck = move_toward(_tuck, 1.0 if _wand_blocked() else 0.0, dt * 7.0)
+		var tk := smoothstep(0.0, 1.0, _tuck)
+		a_r = Vector3(lerpf(1.15 + aim_pitch * 0.75 + back * 0.85, 0.3, tk), 0.0, lerpf(0.08, 0.14, tk))
+		var want := Basis.from_euler(Vector3(deg_to_rad(lerpf(-48.0 + aim_pitch * 30.0 + back * 40.0, 3.0, tk)), 0.0, deg_to_rad(lerpf(-15.0, 16.0, tk))))
 		_wand.basis = Basis.from_euler(a_r).inverse() * want
 		_flash.scale = Vector3.ONE * (0.62 + back * 2.8 + sin(_t * 9.0) * 0.05)
 		_tip.scale = Vector3.ONE * (2.0 + back * 1.5)
@@ -659,6 +700,16 @@ func _process(delta: float) -> void:
 		m.set_shader_parameter("eye_look", eye_shift)
 	_update_look(dt)
 
+## Near a wall the wand lifts up to the shoulder instead of poking through it.
+func _wand_blocked() -> bool:
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3.UP * 0.85
+	var b := global_transform.basis
+	for tip: Vector3 in [Vector3(0.3, 1.0, -1.25), Vector3(0.7, 0.95, -0.25)]:
+		var q := PhysicsRayQueryParameters3D.create(from, global_position + b * tip, 1)
+		if not space.intersect_ray(q).is_empty(): return true
+	return false
+
 ## The chameleon part: near things and standing still you turn to glass.
 func _update_look(delta: float) -> void:
 	var cam := get_viewport().get_camera_3d()
@@ -682,7 +733,7 @@ func _update_look(delta: float) -> void:
 		var me: bool = (mode == LOCAL)
 		if me: v = maxf(v, 0.35)
 		target = 1.0 - v
-		eye_alpha = clampf(0.03 + base * 0.6 + clampf(1.0 - dist / 7.0, 0.0, 1.0) * 0.75, 0.0, 1.0)
+		eye_alpha = clampf(0.02 + base * 0.6 + clampf(1.0 - dist / 5.0, 0.0, 1.0) * 0.5, 0.0, 1.0)
 		if me: eye_alpha = 1.0
 	_camo = lerpf(_camo, target, clampf(delta * 5.0, 0.0, 1.0))
 	for m in _mats:
@@ -693,7 +744,12 @@ func _update_look(delta: float) -> void:
 	for h in _halos:
 		if h.has_meta("power"): h.set_shader_parameter("power", float(h.get_meta("power")) * halo_mult)
 	_chest.modulate.a = 1.0 - _camo * (1.0 - eye_alpha * 0.25)
-	_label.visible = game.show_label(self)
+	_shadow_mat.set_shader_parameter("a", 0.5 * (1.0 - _camo * 0.92))
+	var cast := _camo < 0.55
+	if cast != _casting:
+		_casting = cast
+		for p in _pieces: p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if cast else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_label.visible = game.show_label(self) and (cam == null or cam.global_position.distance_squared_to(global_position) > 5.0)
 
 func _check_near() -> bool:
 	var q := PhysicsShapeQueryParameters3D.new()
@@ -738,12 +794,40 @@ func _brain(delta: float) -> void:
 		elif goal_near:
 			move_input = Vector2.ZERO
 			return
-	var to := _bot_goal - global_position
+	_follow(delta)
+
+## Walks the goal along a real route through the doors; gets itself unstuck.
+func _follow(delta: float) -> void:
+	var goal := _bot_goal
+	var nav: Nav = game.nav
+	if nav != null and nav.ok():
+		_route_t -= delta
+		if _route.is_empty() or _route_t <= 0.0 or _route_goal.distance_to(_bot_goal) > 1.5:
+			var r := nav.route(global_position, _bot_goal)
+			if not r.is_empty():
+				_route = r
+				_route_i = 0
+				_route_goal = _bot_goal
+				_route_t = 1.0
+		if not _route.is_empty():
+			while _route_i < _route.size() - 1 and Vector2(_route[_route_i].x - global_position.x, _route[_route_i].z - global_position.z).length() < 0.5:
+				_route_i += 1
+			goal = _route[_route_i]
+	var to := goal - global_position
 	to.y = 0.0
-	if to.length() < 0.5:
+	if to.length() < 0.3:
 		move_input = Vector2.ZERO
 		return
 	yaw_target = 0.0
 	var d := to.normalized()
 	move_input = Vector2(d.x, d.z)
-	if is_on_wall() and randf() < 0.05: want_jump = true
+	_stuck_t += delta
+	if _stuck_t > 1.0:
+		var moved := _stuck_pos.distance_to(global_position)
+		_stuck_pos = global_position
+		_stuck_t = 0.0
+		if moved < 0.5:
+			want_jump = true
+			if randf() < 0.5:
+				_bot_goal = game.random_spot()
+				_route.clear()

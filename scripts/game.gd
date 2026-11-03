@@ -4,7 +4,7 @@ signal left_game(msg: String)
 
 const COLORS: Array[Color] = [Color("ff4f8b"), Color("2db8f5"), Color("ffc928"), Color("47d16c"), Color("9a6bff"), Color("ff8a2b"), Color("12cfae"), Color("ee4fc4"), Color("8bd82f"), Color("4a78ff"), Color("f5484a"), Color("7fdcff")]
 const DEFAULTS := {
-	"hide_time": 20, "seek_time": 120, "hider_speed": 96, "visibility": 12, "hits": 2,
+	"hide_time": 20, "seek_time": 120, "hider_speed": 96, "visibility": 7, "hits": 2,
 	"cooldown": 0.5, "decoys": 2, "seekers": 1, "bots": 5, "max_players": 12, "public": true, "autostart": true,
 }
 const BOT_NAMES: Array[String] = ["Bot Pip", "Bot Mo", "Bot Dot", "Bot Bean", "Bot Zip", "Bot Lux", "Bot Nib", "Bot Ody", "Bot Tam", "Bot Rue", "Bot Kit"]
@@ -57,6 +57,9 @@ var menu_open := false
 var _slow_t := 0.0
 var _lowered := false
 
+var nav: Nav
+var _cam_side := 0.66
+
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer)
 	multiplayer.peer_disconnected.connect(_on_peer_gone)
@@ -68,12 +71,12 @@ func _ready() -> void:
 	rig = Node3D.new()
 	add_child(rig)
 	arm = SpringArm3D.new()
-	arm.spring_length = 4.3
-	arm.collision_mask = 1
+	arm.spring_length = 3.7
+	arm.collision_mask = 5
 	var sph := SphereShape3D.new()
 	sph.radius = 0.2
 	arm.shape = sph
-	arm.position = Vector3(0.0, 1.62, 0.0)
+	arm.position = Vector3(0.0, 1.38, 0.0)
 	rig.add_child(arm)
 	cam = Camera3D.new()
 	cam.fov = 72.0
@@ -91,7 +94,7 @@ func uid() -> int:
 	return _uid
 
 func me() -> Clone: return nodes.get(uid()) as Clone
-func visibility() -> float: return clampf(float(settings.get("visibility", 12)) / 100.0, 0.0, 1.0)
+func visibility() -> float: return clampf(float(settings.get("visibility", 7)) / 100.0, 0.0, 1.0)
 
 func is_hiding_look(c: Clone) -> bool:
 	return (phase == "hide" or phase == "seek") and not c.seeker
@@ -276,6 +279,16 @@ func _build_world() -> void:
 			b.rotation.y = e[4]
 			world.add_child(b)
 			_props.append(b.position)
+	nav = null
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if token != _world_token: return
+	var grid := Nav.new()
+	await grid.build(self, get_world_3d().direct_space_state, float(map.get("size", 40)), func() -> bool: return token == _world_token)
+	if token != _world_token: return
+	nav = grid
+	print("[hc] nav reachable=%.1f%%" % (grid.reachable_share() * 100.0))
+	if hud and _is_host() and grid.reachable_share() < 0.8: hud.toast("Some areas of this map are sealed off. Nobody spawns there.")
 	_map_ready = true
 	if _lowered:
 		for n in world.get_children():
@@ -288,6 +301,7 @@ func _build_world() -> void:
 	print("[hc] world ready props=%d" % _props.size())
 
 func _spawn_spot(radius := 7.0) -> Vector3:
+	if nav != null and nav.ok(): return nav.random_spot(radius)
 	var space := get_world_3d().direct_space_state
 	var half: float = float(map.get("size", 40)) * 0.5 - 2.0
 	for i in 40:
@@ -308,7 +322,8 @@ func random_spot() -> Vector3: return _spawn_spot(float(map.get("size", 40)) * 0
 func random_prop_spot() -> Vector3:
 	if _props.is_empty(): return random_spot()
 	var p: Vector3 = _props[randi() % _props.size()]
-	return p + Vector3(randf_range(-1.5, 1.5), 0, randf_range(-1.5, 1.5))
+	var near := p + Vector3(randf_range(-1.5, 1.5), 0, randf_range(-1.5, 1.5))
+	return nav.nearest(near) if nav != null and nav.ok() else near
 
 # ---------- rounds (host) ---------------------------------------------------
 func request_start() -> void:
@@ -616,10 +631,14 @@ func nearest_hider(c: Clone, r: float) -> Clone:
 		var n: Clone = nodes.get(id)
 		if n == null or p["seeker"] or not p["alive"] or not p["in_round"]: continue
 		var d := n.global_position.distance_to(c.global_position)
-		if d < bd and d < r * (1.0 - 0.7 * n.camo_amount()):
+		if d < bd and d < r * (1.0 - 0.7 * n.camo_amount()) and _sees(c, n):
 			bd = d
 			best = n
 	return best
+
+func _sees(a: Clone, b: Clone) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(a.global_position + Vector3.UP * 1.1, b.global_position + Vector3.UP * 0.8, 1)
+	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 func nearest_seeker(c: Clone, r: float) -> Clone:
 	for id: int in players:
@@ -735,7 +754,7 @@ func _camera_tick(delta: float) -> void:
 		rig.global_position = Vector3.ZERO
 		rig.rotation.y = _yaw
 		arm.rotation.x = _pitch
-		cam.position.x = 0.0
+		arm.position.x = 0.0
 		if me(): me().visible = false
 		return
 	var m := me()
@@ -749,7 +768,13 @@ func _camera_tick(delta: float) -> void:
 	_shake = move_toward(_shake, 0.0, delta * 7.0)
 	rig.rotation.y = _yaw
 	arm.rotation.x = _pitch + _shake * _shake * 0.016
-	cam.position.x = 0.78
+	# shoulder camera: the sideways offset is tested too, so it can't slide into a wall
+	var side := 0.66
+	var head := rig.global_position + Vector3.UP * 1.3
+	var wall := get_world_3d().direct_space_state.intersect_ray(PhysicsRayQueryParameters3D.create(head, head + rig.global_basis.x * 0.95, 5))
+	if wall: side = maxf(head.distance_to(wall["position"]) - 0.3, 0.0)
+	_cam_side = move_toward(_cam_side, side, delta * (6.0 if side > _cam_side else 14.0))
+	arm.position.x = _cam_side
 	cam.rotation.z = sin(_shake * 14.0) * _shake * 0.006
 	if m: arm.clear_excluded_objects()
 	if m: arm.add_excluded_object(m.get_rid())
