@@ -23,17 +23,17 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\Square71x71Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" ShortName="Hide and Clone"/>
         <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#f5f0ff"/>
       </uap:VisualElements>
-      <Extensions>
-        <desktop2:Extension Category="windows.firewallRules">
-          <desktop2:FirewallRules Executable="HideAndClone.exe">
-            <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all"/>
-          </desktop2:FirewallRules>
-        </desktop2:Extension>
-      </Extensions>
     </Application>
   </Applications>
   <Capabilities>
     <Capability Name="internetClient"/>
     <rescap:Capability Name="runFullTrust"/>
   </Capabilities>
+  <Extensions>
+    <desktop2:Extension Category="windows.firewallRules">
+      <desktop2:FirewallRules Executable="HideAndClone.exe">
+        <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all"/>
+      </desktop2:FirewallRules>
+    </desktop2:Extension>
+  </Extensions>
 </Package>
