@@ -94,7 +94,7 @@ func _ui(n: String) -> void:
 	layer.add_child(top)
 	var row := UI.hbox(8)
 	top.add_child(row)
-	row.add_child(UI.button("BACK", Color("555b78"), 15, func() -> void: main.leave_builder()))
+	row.add_child(UI.button("BACK", Color("5a5f9e"), 15, func() -> void: main.leave_builder()))
 	name_in = UI.input("Map name", n, 16)
 	name_in.custom_minimum_size = Vector2(220, 0)
 	row.add_child(name_in)
@@ -118,15 +118,15 @@ func _ui(n: String) -> void:
 	sn.button_pressed = true
 	sn.toggled.connect(func(b: bool) -> void: snap = b)
 	row.add_child(sn)
-	row.add_child(UI.button("UNDO", Color("3b4170"), 15, _undo))
+	row.add_child(UI.button("UNDO", Color("3a3ea8"), 15, _undo))
 	var er := UI.button("ERASER", Color("7a3350"), 15)
 	er.pressed.connect(func() -> void:
 		erase = not erase
 		er.text = "ERASING" if erase else "ERASER"
 		if erase: _set_ghost(""))
 	row.add_child(er)
-	row.add_child(UI.button("SAVE", Color("00b894"), 15, _save))
-	row.add_child(UI.button("PLAY THIS MAP", Color("ff5d8f"), 18, func() -> void:
+	row.add_child(UI.button("SAVE", Color("14bf8e"), 15, _save))
+	row.add_child(UI.button("PLAY THIS MAP", Color("ff4f8b"), 18, func() -> void:
 		var m := _save()
 		var s: Dictionary = main.game.DEFAULTS.duplicate()
 		main.play_host(m, s)))
@@ -161,14 +161,14 @@ func _ui(n: String) -> void:
 	sc.add_child(grid)
 	v.add_child(sc)
 	var pg := UI.hbox()
-	pg.add_child(UI.button("PREV", Color("3b4170"), 13, func() -> void:
+	pg.add_child(UI.button("PREV", Color("3a3ea8"), 13, func() -> void:
 		page = maxi(page - 1, 0)
 		_render_grid()))
 	page_l = UI.label("", 14)
 	page_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pg.add_child(page_l)
-	pg.add_child(UI.button("NEXT", Color("3b4170"), 13, func() -> void:
+	pg.add_child(UI.button("NEXT", Color("3a3ea8"), 13, func() -> void:
 		page = mini(page + 1, _last_page())
 		_render_grid()))
 	v.add_child(pg)
@@ -211,9 +211,9 @@ func _render_grid() -> void:
 		b.tooltip_text = Cat.pretty(id)
 		b.expand_icon = true
 		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		b.add_theme_stylebox_override("normal", UI.style(Color("2c3158"), 10))
-		b.add_theme_stylebox_override("hover", UI.style(Color("47509a"), 10))
-		b.add_theme_stylebox_override("pressed", UI.style(Color("ff5d8f"), 10))
+		b.add_theme_stylebox_override("normal", UI.style(Color("2a2d82"), 10))
+		b.add_theme_stylebox_override("hover", UI.style(Color("4a4fd0"), 10))
+		b.add_theme_stylebox_override("pressed", UI.style(Color("ff4f8b"), 10))
 		b.pressed.connect(func() -> void: _set_ghost(id))
 		grid.add_child(b)
 		_thumb_rects[id] = b

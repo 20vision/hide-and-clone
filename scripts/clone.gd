@@ -9,16 +9,47 @@ shader_type spatial;
 render_mode unshaded, cull_back;
 uniform sampler2D screen_tex: hint_screen_texture, filter_linear, repeat_disable;
 uniform vec3 tint : source_color = vec3(1.0);
+uniform vec3 tint2 : source_color = vec3(1.0);
+uniform int pattern = 0;
+uniform bool face = false;
 uniform float camo = 0.0;
 uniform float rim = 0.0;
+varying vec3 lp;
+varying vec3 wn;
+void vertex() {
+	lp = VERTEX;
+	wn = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
 void fragment() {
+	vec3 col = tint;
+	if (face) {
+		if (pattern == 1) col = mix(tint, tint2, step(0.5, fract(lp.y * 3.6)));
+		else if (pattern == 2) { vec2 q = fract(vec2(atan(lp.x, lp.z) * 2.6, lp.y * 5.2)) - 0.5; col = mix(tint, tint2, smoothstep(0.26, 0.22, length(q))); }
+		else if (pattern == 3) col = mix(tint2, tint, smoothstep(0.86, 0.9, lp.y));
+		float belly = smoothstep(0.42, 0.2, length(vec2(lp.x * 1.05, (lp.y - 0.56) * 0.9))) * step(lp.z, 0.0);
+		col = mix(col, mix(col, vec3(1.0), 0.55), belly);
+		vec2 m = vec2(lp.x, lp.y - 1.07);
+		float arc = smoothstep(0.02, 0.008, abs(length(m) - 0.1)) * step(m.y, -0.025) * step(lp.z, 0.0);
+		float blush = smoothstep(0.1, 0.03, length(vec2(abs(lp.x) - 0.25, lp.y - 1.03))) * step(lp.z, 0.0) * 0.55;
+		col = mix(col, vec3(1.0, 0.42, 0.5), blush);
+		col = mix(col, vec3(0.13, 0.05, 0.12), arc);
+	}
+	vec3 n = normalize(wn);
+	vec3 L = normalize(vec3(0.45, 0.8, 0.4));
+	float w = dot(n, L) * 0.5 + 0.5;
+	float soft = smoothstep(0.12, 0.8, w);
+	vec3 shadow = col * vec3(0.5, 0.48, 0.68);
+	vec3 solid = mix(shadow, col * 1.04, soft);
 	float nv = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
-	float fres = pow(1.0 - nv, 2.5);
-	vec2 uv = SCREEN_UV + NORMAL.xy * vec2(-0.016, 0.016) * (0.35 + fres);
+	float fres = pow(1.0 - nv, 3.0);
+	vec3 vL = normalize((VIEW_MATRIX * vec4(L, 0.0)).xyz);
+	vec3 h = normalize(vL + VIEW);
+	float spec = pow(clamp(dot(NORMAL, h), 0.0, 1.0), 42.0);
+	solid += vec3(1.0) * spec * 0.32 + vec3(0.72, 0.88, 1.0) * fres * 0.34;
+	if (face) solid *= mix(0.72, 1.0, smoothstep(0.0, 0.3, lp.y));
+	vec2 uv = SCREEN_UV + NORMAL.xy * vec2(-0.016, 0.016) * (0.35 + pow(1.0 - nv, 2.5));
 	vec3 bg = texture(screen_tex, uv).rgb;
-	float l = 0.7 + 0.3 * clamp(NORMAL.y * 0.6 + NORMAL.z * 0.5, -1.0, 1.0);
-	vec3 solid = tint * l + vec3(0.22) * fres * fres;
-	vec3 glass = bg + vec3(1.0) * fres * rim;
+	vec3 glass = bg + vec3(1.0) * pow(1.0 - nv, 2.5) * rim;
 	ALBEDO = mix(solid, glass, camo);
 }
 """
@@ -46,6 +77,19 @@ var _hands: Array[MeshInstance3D] = []
 var _label: Label3D
 var _wand: Node3D
 var _crown: Node3D
+var _arm_pivots: Array[Node3D] = []
+var _leg_pivots: Array[Node3D] = []
+var _body: MeshInstance3D
+var _pattern := 0
+var _squash := 0.0
+var _air := false
+var _prev_y := 0.0
+var _vy := 0.0
+var _pupils: Array[MeshInstance3D] = []
+static var _bean_mesh: ArrayMesh
+static var _star_mesh: ArrayMesh
+static var _limb_mesh: CapsuleMesh
+static var _leg_mesh: CapsuleMesh
 var _near := false
 var _near_t := 0.0
 var _camo := 0.0
@@ -59,7 +103,8 @@ var _bot_t := 0.0
 var _bot_fire := 0.0
 var ai := false
 
-func setup(id: int, m: int, g: Node, color: Color, shown_name: String) -> void:
+func setup(id: int, m: int, g: Node, color: Color, shown_name: String, skin := 0) -> void:
+	_pattern = skin % 4
 	pid = id
 	mode = m
 	game = g
@@ -68,10 +113,10 @@ func setup(id: int, m: int, g: Node, color: Color, shown_name: String) -> void:
 	collision_mask = 5
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.42
-	cap.height = 1.55
+	cap.radius = 0.46
+	cap.height = 1.62
 	cs.shape = cap
-	cs.position.y = 0.78
+	cs.position.y = 0.81
 	add_child(cs)
 	_build(shown_name)
 
@@ -83,105 +128,190 @@ func _part(mesh: Mesh, mat: Material, pos: Vector3, parent: Node3D = null) -> Me
 	(parent if parent else _visual).add_child(mi)
 	return mi
 
-func _glass() -> ShaderMaterial:
+func _glass(is_body := false) -> ShaderMaterial:
 	if _shader == null:
 		_shader = Shader.new()
 		_shader.code = SHADER
 	var m := ShaderMaterial.new()
 	m.shader = _shader
-	m.set_shader_parameter("tint", Vector3(tint.r, tint.g, tint.b))
+	m.set_shader_parameter("tint", tint)
+	m.set_shader_parameter("tint2", tint.lightened(0.45))
+	m.set_shader_parameter("pattern", _pattern)
+	m.set_shader_parameter("face", is_body)
 	_body_mats.append(m)
 	return m
+
+## Smooth jelly-bean body, wider at the bottom, built once and shared.
+static func _bean() -> ArrayMesh:
+	if _bean_mesh: return _bean_mesh
+	const RINGS := 30
+	const SEG := 40
+	const H := 1.62
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for r in RINGS + 1:
+		var a := PI * float(r) / RINGS
+		var y := H * 0.5 * (1.0 - cos(a))
+		var k := y / H
+		var bottom := 0.56
+		var top := 0.44
+		var rad := lerpf(bottom, top, smoothstep(0.2, 0.92, k)) * pow(sin(a), 0.72)
+		if k < 0.08: y = lerpf(y, 0.04, 0.35)
+		for i in SEG:
+			var t := TAU * float(i) / SEG
+			st.add_vertex(Vector3(cos(t) * rad, y, sin(t) * rad * 0.9))
+	for r in RINGS:
+		for i in SEG:
+			var a := r * SEG + i
+			var b := r * SEG + (i + 1) % SEG
+			var c := (r + 1) * SEG + i
+			var d := (r + 1) * SEG + (i + 1) % SEG
+			for v: int in [a, b, c, b, d, c]: st.add_index(v)
+	st.generate_normals()
+	_bean_mesh = st.commit()
+	return _bean_mesh
+
+static func _star() -> ArrayMesh:
+	if _star_mesh: return _star_mesh
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var depth := 0.05
+	var pts: Array[Vector3] = []
+	for i in 10:
+		var a := PI * 0.5 + TAU * i / 10.0
+		var r := 0.17 if i % 2 == 0 else 0.075
+		pts.append(Vector3(cos(a) * r, sin(a) * r, 0))
+	for i in 10:
+		var p: Vector3 = pts[i]
+		var q: Vector3 = pts[(i + 1) % 10]
+		for tri: Array in [[Vector3(0, 0, depth), p, q], [Vector3(0, 0, -depth), q, p]]:
+			for v: Vector3 in tri: st.add_vertex(v)
+	st.generate_normals()
+	_star_mesh = st.commit()
+	return _star_mesh
+
+func _pivot(pos: Vector3) -> Node3D:
+	var n := Node3D.new()
+	n.position = pos
+	_visual.add_child(n)
+	return n
 
 func _build(shown_name: String) -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
-	var mat := _glass()
-	var body := CapsuleMesh.new()
-	body.radius = 0.42
-	body.height = 1.5
-	body.radial_segments = 24
-	body.rings = 10
-	_part(body, mat, Vector3(0, 0.82, 0))
-	var limb := SphereMesh.new()
-	limb.radius = 0.15
-	limb.height = 0.26
-	limb.radial_segments = 12
-	limb.rings = 6
-	for x: float in [-0.2, 0.2]:
-		_feet.append(_part(limb, mat, Vector3(x, 0.1, -0.04)))
-	var hand := SphereMesh.new()
-	hand.radius = 0.11
-	hand.height = 0.22
-	hand.radial_segments = 10
-	hand.rings = 5
-	for x: float in [-0.47, 0.47]:
-		_hands.append(_part(hand, mat, Vector3(x, 0.72, -0.04)))
+	var limb_mat := _glass()
+	_body = _part(_bean(), _glass(true), Vector3.ZERO)
+	if _limb_mesh == null:
+		_limb_mesh = CapsuleMesh.new()
+		_limb_mesh.radius = 0.1
+		_limb_mesh.height = 0.5
+		_limb_mesh.radial_segments = 14
+		_limb_mesh.rings = 6
+		_leg_mesh = CapsuleMesh.new()
+		_leg_mesh.radius = 0.15
+		_leg_mesh.height = 0.42
+		_leg_mesh.radial_segments = 14
+		_leg_mesh.rings = 6
+	for x: float in [-0.25, 0.25]:
+		var p := _pivot(Vector3(x, 0.26, 0.0))
+		_part(_leg_mesh, limb_mat, Vector3(0, -0.14, 0), p)
+		_leg_pivots.append(p)
+	for x: float in [-0.5, 0.5]:
+		var p := _pivot(Vector3(x, 0.82, 0.0))
+		p.rotation.z = 0.32 * signf(x)
+		_part(_limb_mesh, limb_mat, Vector3(0, -0.2, 0), p)
+		_arm_pivots.append(p)
 	_eye_mat = StandardMaterial3D.new()
 	_eye_mat.albedo_color = Color.WHITE
 	_eye_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_eye_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_pupil_mat = StandardMaterial3D.new()
-	_pupil_mat.albedo_color = Color(0.05, 0.05, 0.1)
+	_pupil_mat.albedo_color = Color(0.04, 0.03, 0.09)
 	_pupil_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_pupil_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	var ew := SphereMesh.new()
 	ew.radius = 0.135
 	ew.height = 0.27
-	ew.radial_segments = 12
-	ew.rings = 6
+	ew.radial_segments = 20
+	ew.rings = 10
 	var ep := SphereMesh.new()
-	ep.radius = 0.07
-	ep.height = 0.14
-	ep.radial_segments = 10
-	ep.rings = 5
-	for x: float in [-0.16, 0.16]:
-		var e := _part(ew, _eye_mat, Vector3(x, 1.16, -0.33))
-		_part(ep, _pupil_mat, Vector3(0, 0, -0.095), e)
+	ep.radius = 0.085
+	ep.height = 0.17
+	ep.radial_segments = 14
+	ep.rings = 7
+	var eh := SphereMesh.new()
+	eh.radius = 0.028
+	eh.height = 0.056
+	eh.radial_segments = 8
+	eh.rings = 4
+	for x: float in [-0.14, 0.14]:
+		var e := _part(ew, _eye_mat, Vector3(x, 1.25, -0.335))
+		e.scale = Vector3(1.0, 1.22, 0.55)
+		var pu := _part(ep, _pupil_mat, Vector3(0, 0, -0.095), e)
+		pu.scale = Vector3(1, 1, 0.5)
+		_pupils.append(pu)
+		_part(eh, _eye_mat, Vector3(-0.032, 0.04, -0.075), pu)
 		_eyes.append(e)
 	_label = Label3D.new()
 	_label.text = shown_name
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_label.position.y = 1.95
-	_label.font_size = 40
+	_label.position.y = 2.1
+	_label.font_size = 42
 	_label.pixel_size = 0.0055
+	_label.font = UI.body_font()
 	_label.outline_size = 10
 	_label.no_depth_test = false
 	add_child(_label)
 	_wand = Node3D.new()
-	_wand.position = Vector3(0.47, 0.75, -0.12)
-	_wand.rotation.x = -1.25
-	_visual.add_child(_wand)
+	_wand.position = Vector3(0.05, -0.38, -0.05)
+	_wand.rotation = Vector3(-1.45, 0.0, -0.32)
+	_arm_pivots[1].add_child(_wand)
 	var stick := CylinderMesh.new()
-	stick.top_radius = 0.025
-	stick.bottom_radius = 0.035
+	stick.top_radius = 0.022
+	stick.bottom_radius = 0.034
 	stick.height = 0.7
 	var smat := StandardMaterial3D.new()
-	smat.albedo_color = Color(0.25, 0.12, 0.45)
-	var sm := _part(stick, smat, Vector3(0, 0.3, 0), _wand)
-	sm.name = "stick"
-	var star := SphereMesh.new()
-	star.radius = 0.09
-	star.height = 0.18
+	smat.albedo_color = Color("3a1f7a")
+	smat.roughness = 0.35
+	_part(stick, smat, Vector3(0, 0.3, 0), _wand)
 	var gmat := StandardMaterial3D.new()
-	gmat.albedo_color = Color(1, 0.9, 0.3)
+	gmat.albedo_color = Color("ffe34d")
 	gmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_part(star, gmat, Vector3(0, 0.68, 0), _wand)
+	var st := _part(_star(), gmat, Vector3(0, 0.74, 0), _wand)
+	st.rotation.x = PI * 0.5
 	_crown = Node3D.new()
-	_crown.position = Vector3(0, 1.58, 0)
+	_crown.position = Vector3(0, 1.57, 0)
 	_visual.add_child(_crown)
-	var cmesh := CylinderMesh.new()
-	cmesh.top_radius = 0.26
-	cmesh.bottom_radius = 0.2
-	cmesh.height = 0.2
-	cmesh.radial_segments = 8
+	var band := CylinderMesh.new()
+	band.top_radius = 0.235
+	band.bottom_radius = 0.21
+	band.height = 0.13
+	band.radial_segments = 20
 	var cmat := StandardMaterial3D.new()
-	cmat.albedo_color = Color(1.0, 0.8, 0.15)
-	cmat.metallic = 0.4
-	_part(cmesh, cmat, Vector3.ZERO, _crown)
+	cmat.albedo_color = Color("ffc21a")
+	cmat.roughness = 0.3
+	_part(band, cmat, Vector3.ZERO, _crown)
+	var spike := CylinderMesh.new()
+	spike.top_radius = 0.0
+	spike.bottom_radius = 0.075
+	spike.height = 0.2
+	spike.radial_segments = 8
+	var gem := SphereMesh.new()
+	gem.radius = 0.035
+	gem.height = 0.07
+	var gemm := StandardMaterial3D.new()
+	gemm.albedo_color = Color("ff3d7f")
+	gemm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for i in 5:
+		var a := TAU * i / 5.0
+		var dir := Vector3(cos(a), 0, sin(a))
+		_part(spike, cmat, dir * 0.195 + Vector3.UP * 0.15, _crown)
+		_part(gem, gemm, dir * 0.205 + Vector3.UP * 0.03, _crown)
 	set_role(false)
 
 func camo_amount() -> float: return _camo
+
+func wand_ready() -> bool: return _wand != null and _wand.visible
 
 func set_role(is_seeker: bool) -> void:
 	seeker = is_seeker
@@ -241,18 +371,37 @@ func _process(delta: float) -> void:
 	_last_pos = global_position
 	_speed2d = lerpf(_speed2d, moved.length() / maxf(delta, 0.001), clampf(delta * 8.0, 0.0, 1.0))
 	var w := clampf(_speed2d / SPEED, 0.0, 1.0)
-	var s := sin(_t * 13.0)
-	_visual.rotation.z = s * 0.11 * w
-	_visual.position.y = absf(s) * 0.09 * w
-	if _feet.size() == 2:
-		_feet[0].position.z = -0.04 + s * 0.2 * w
-		_feet[1].position.z = -0.04 - s * 0.2 * w
-		_hands[0].position.y = 0.72 + s * 0.07 * w
-		_hands[1].position.y = 0.72 - s * 0.07 * w
+	var s := sin(_t * 12.5)
+	var breathe := sin(_t * 2.2) * 0.012 * (1.0 - w)
+	_vy = lerpf(_vy, (global_position.y - _prev_y) / maxf(delta, 0.001), clampf(delta * 14.0, 0.0, 1.0))
+	_prev_y = global_position.y
+	var in_air := absf(_vy) > 0.9
+	if _air and not in_air: _squash = 1.0
+	_air = in_air
+	_squash = move_toward(_squash, 0.0, delta * 4.5)
+	var st := 0.0
+	if in_air: st = clampf(absf(_vy) / 8.0, 0.0, 0.14)
+	var sq := sin(_squash * PI) * 0.2
+	_visual.scale = Vector3(1.0 + sq * 0.7 - st * 0.5 - breathe, 1.0 - sq + st + breathe, 1.0 + sq * 0.7 - st * 0.5 - breathe)
+	_visual.rotation.z = s * 0.075 * w
+	_visual.rotation.x = -0.17 * w
+	_visual.position.y = absf(s) * 0.07 * w
+	if _leg_pivots.size() == 2:
+		var air_pose := 0.55 if in_air else 0.0
+		_leg_pivots[0].rotation.x = s * 0.85 * w + air_pose
+		_leg_pivots[1].rotation.x = -s * 0.85 * w - air_pose
+		_arm_pivots[0].rotation.x = -s * 0.8 * w
+		var aim := -1.2 if seeker and wand_ready() else s * 0.8 * w
+		_arm_pivots[1].rotation.x = aim
+		var flap := 0.55 if in_air else 0.0
+		_arm_pivots[0].rotation.z = -0.32 - flap
+		_arm_pivots[1].rotation.z = 0.32 + flap
 	_blink -= delta
 	if _blink < 0.0: _blink = 2.0 + randf() * 3.5
-	var open := 0.1 if _blink < 0.1 else 1.0
+	var open := 0.08 if _blink < 0.11 else 1.22
 	for e in _eyes: e.scale.y = open
+	var look := Vector3(sin(_t * 0.7) * 0.022, sin(_t * 1.1) * 0.012, -0.095)
+	for pu in _pupils: pu.position = look
 	_update_look(delta)
 
 ## The chameleon part: near things and standing still you turn to glass.

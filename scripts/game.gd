@@ -2,7 +2,7 @@ extends Node3D
 ## Rounds, players, wand and sync. The host decides; everyone else follows.
 signal left_game(msg: String)
 
-const COLORS: Array[Color] = [Color("ff5d8f"), Color("4cc9f0"), Color("ffd166"), Color("7ae582"), Color("b388ff"), Color("ff9f43"), Color("00d4b1"), Color("f15bb5"), Color("9bde45"), Color("5e8bff"), Color("ff6b6b"), Color("c9f0ff")]
+const COLORS: Array[Color] = [Color("ff4f8b"), Color("2db8f5"), Color("ffc928"), Color("47d16c"), Color("9a6bff"), Color("ff8a2b"), Color("12cfae"), Color("ee4fc4"), Color("8bd82f"), Color("4a78ff"), Color("f5484a"), Color("7fdcff")]
 const DEFAULTS := {
 	"hide_time": 20, "seek_time": 120, "hider_speed": 96, "visibility": 12, "hits": 2,
 	"cooldown": 0.5, "decoys": 2, "seekers": 1, "bots": 5, "max_players": 12, "public": true, "autostart": true,
@@ -441,7 +441,7 @@ func _sync_nodes() -> void:
 		var m := Clone.REMOTE
 		if id == my_id: m = Clone.LOCAL
 		elif p["bot"] and _is_host(): m = Clone.BOT
-		c.setup(id, m, self, COLORS[int(p["color"]) % COLORS.size()], p["name"])
+		c.setup(id, m, self, COLORS[int(p["color"]) % COLORS.size()], p["name"], int(p["color"]))
 		c.ai = ai_mode and id == my_id
 		add_child(c)
 		var sp := _spawn_spot(5.0) if _map_ready else Vector3(0, 1, 0)
@@ -559,7 +559,7 @@ func decoy_req(p: Vector3, yaw: float) -> void:
 @rpc("authority", "call_local", "reliable")
 func decoy_spawn(id: int, p: Vector3, yaw: float, color: int) -> void:
 	var c := Clone.new()
-	c.setup(id, Clone.DECOY, self, COLORS[color % COLORS.size()], "")
+	c.setup(id, Clone.DECOY, self, COLORS[color % COLORS.size()], "", color)
 	add_child(c)
 	c.teleport(p, yaw)
 	decoys[id] = c

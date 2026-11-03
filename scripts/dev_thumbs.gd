@@ -20,6 +20,8 @@ func _flat(n: Node) -> void:
 			if mat:
 				mat.metallic = 0.0
 				mat.roughness = 1.0
+				var c := mat.albedo_color
+				if c.g > 0.7 and c.b > 0.6 and c.r < 0.6: mat.albedo_color = Color(0.36, 0.7, 0.27) if c.g > 0.85 else Color(0.27, 0.58, 0.25)
 	for c in n.get_children(): _flat(c)
 
 func _run() -> void:

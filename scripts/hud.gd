@@ -33,10 +33,10 @@ func build(g: Node) -> void:
 	add_child(root)
 	blind = ColorRect.new()
 	UI.full(blind)
-	blind.color = Color(0.03, 0.03, 0.08, 1)
+	blind.color = Color(0.08, 0.07, 0.3, 1)
 	blind.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(blind)
-	blind_text = UI.label("", 34, Color("ffd166"), true)
+	blind_text = UI.label("", 38, Color("ffc928"), true)
 	blind_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	blind_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var bc := UI.center(blind_text)
@@ -54,27 +54,25 @@ func build(g: Node) -> void:
 	topbox.custom_minimum_size = Vector2(440, 0)
 	topbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(topbox)
-	top = UI.label("", 38, Color.WHITE, true)
+	var chip := UI.pill()
+	chip.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var chipv := UI.vbox(0)
+	chipv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_child(chipv)
+	topbox.add_child(chip)
+	top = UI.label("", 40, Color.WHITE, true)
 	top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	top.add_theme_constant_override("outline_size", 8)
-	top.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-	topbox.add_child(top)
-	count = UI.label("", 20, Color.WHITE, true)
+	chipv.add_child(top)
+	count = UI.label("", 18, Color("ffe27a"), false)
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	count.add_theme_constant_override("outline_size", 6)
-	count.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
-	topbox.add_child(count)
-	role = UI.label("", 20, Color("ffd166"), true)
+	chipv.add_child(count)
+	role = UI.outlined(UI.label("", 22, Color("ffc928"), true), 8)
 	role.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	role.add_theme_constant_override("outline_size", 6)
-	role.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
 	topbox.add_child(role)
-	toast_l = UI.label("", 22, Color("ffffff"), true)
-	toast_l.add_theme_constant_override("outline_size", 6)
-	toast_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	toast_l = UI.outlined(UI.label("", 22, Color("ffffff"), true), 8)
 	toast_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	topbox.add_child(toast_l)
-	cross = UI.label("+", 34, Color("ffd166"))
+	cross = UI.outlined(UI.label("+", 36, Color("ffe27a"), true), 6)
 	cross.set_anchors_preset(Control.PRESET_CENTER)
 	cross.position = Vector2(-10, -24)
 	cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -85,8 +83,7 @@ func build(g: Node) -> void:
 	hint.offset_top = -38
 	hint.offset_bottom = -8
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.add_theme_constant_override("outline_size", 5)
-	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.7))
+	UI.outlined(hint, 7)
 	root.add_child(hint)
 	loading = UI.label("", 22, Color.WHITE, true)
 	loading.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -96,7 +93,7 @@ func build(g: Node) -> void:
 	# player list (hold Tab)
 	board = UI.panel()
 	var bv := UI.vbox(6)
-	bv.add_child(UI.label("PLAYERS", 24, Color("ffd166"), true))
+	bv.add_child(UI.label("PLAYERS", 24, Color("ffc928"), true))
 	board_list = UI.vbox(4)
 	bv.add_child(board_list)
 	board.add_child(bv)
@@ -122,13 +119,13 @@ func build(g: Node) -> void:
 	pv.add_child(map_l)
 	code_l = UI.label("", 20, Color("7ae582"), true)
 	pv.add_child(code_l)
-	copy_b = UI.button("COPY INVITE LINK", Color("00b894"), 18, _copy)
+	copy_b = UI.button("COPY INVITE LINK", Color("14bf8e"), 18, _copy)
 	pv.add_child(copy_b)
-	start_b = UI.button("START ROUND", Color("ff5d8f"), 24, func() -> void:
+	start_b = UI.button("START ROUND", Color("ff4f8b"), 24, func() -> void:
 		game.request_start()
 		_capture())
 	pv.add_child(start_b)
-	pv.add_child(UI.button("PLAY", Color("5e8bff"), 20, _capture))
+	pv.add_child(UI.button("PLAY", Color("3d7bff"), 20, _capture))
 	var sens_row := UI.hbox()
 	sens_row.add_child(UI.label("Mouse speed", 16))
 	var sl := HSlider.new()
@@ -141,8 +138,8 @@ func build(g: Node) -> void:
 	sl.value_changed.connect(func(v: float) -> void: game.sens = v)
 	sens_row.add_child(sl)
 	pv.add_child(sens_row)
-	pv.add_child(UI.button("LEAVE GAME", Color("555b78"), 16, func() -> void: game._quit("")))
-	pv.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("2a2350"), 13, func() -> void: game.get_parent().open_site("panel")))
+	pv.add_child(UI.button("LEAVE GAME", Color("5a5f9e"), 16, func() -> void: game._quit("")))
+	pv.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("1f2070"), 13, func() -> void: game.get_parent().open_site("panel")))
 	pause.custom_minimum_size = Vector2(380, 0)
 	pause.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
 	var pwrap := MarginContainer.new()
@@ -225,12 +222,12 @@ func tick(delta: float) -> void:
 		"lobby":
 			var at: float = game._start_at
 			top.text = "Starting in %d" % int(ceil(at)) if at >= 0.0 else "Lobby"
-			count.text = "%d players" % game.players.size()
+			count.text = "%d player%s" % [game.players.size(), "" if game.players.size() == 1 else "s"]
 			role.text = "Waiting for the host" if not multiplayer.is_server() else ""
 			hint.text = ("WASD move · Space jump · Tab players · Esc menu" + (" · Enter start" if multiplayer.is_server() else "")) if captured else "Click the map to play"
 		"hide":
 			top.text = "HIDE " + _mmss(game.time_left)
-			count.text = "%d clones hiding" % total
+			count.text = "%d clone%s hiding" % [total, "" if total == 1 else "s"]
 			if seeker_me:
 				blind_text.text = "You are THE ORIGINAL\nYour clones are hiding.\nHunt starts in %d" % int(ceil(game.time_left))
 				role.text = ""
@@ -293,7 +290,7 @@ func _render_board() -> void:
 			col = Color(0.8, 0.8, 0.85)
 		elif p["seeker"]:
 			st = "THE ORIGINAL · %d found" % int(p["tags"])
-			col = Color("ffd166")
+			col = Color("ffc928")
 		elif p["alive"]:
 			st = "still here · %d hits" % int(p["hp"])
 		else:
@@ -307,7 +304,7 @@ func _render_end() -> void:
 	var r: Dictionary = game.result
 	if r.is_empty(): return
 	var side := str(r["side"])
-	end_v.add_child(UI.label("THE CLONES ESCAPED!" if side == "hiders" else "THE ORIGINAL WINS!", 34, Color("ffd166"), true))
+	end_v.add_child(UI.label("THE CLONES ESCAPED!" if side == "hiders" else "THE ORIGINAL WINS!", 38, Color("ffc928"), true))
 	end_v.add_child(UI.label("Winners", 20, Color("7ae582"), true))
 	var w: Array = r["winners"]
 	end_v.add_child(UI.label(", ".join(PackedStringArray(w)) if not w.is_empty() else "Nobody", 18))

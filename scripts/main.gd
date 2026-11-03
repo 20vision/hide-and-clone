@@ -10,6 +10,7 @@ var player_name := "Clone"
 
 func _ready() -> void:
 	randomize()
+	ThemeDB.fallback_font = UI.body_font()
 	player_name = _load_name()
 	hud = CanvasLayer.new()
 	hud.set_script(load("res://scripts/hud.gd"))

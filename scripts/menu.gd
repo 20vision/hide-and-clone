@@ -47,7 +47,7 @@ func _clear() -> void:
 func _home() -> void:
 	_clear()
 	var v := UI.vbox(14)
-	v.custom_minimum_size = Vector2(440, 0)
+	v.custom_minimum_size = Vector2(470, 0)
 	v.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	var wrap := MarginContainer.new()
 	wrap.add_theme_constant_override("margin_left", 48)
@@ -56,33 +56,35 @@ func _home() -> void:
 	cc.add_child(v)
 	wrap.add_child(cc)
 	body.add_child(wrap)
-	var t := UI.label("HIDE & CLONE", 58, Color.WHITE, true)
-	t.add_theme_constant_override("outline_size", 12)
-	t.add_theme_color_override("font_outline_color", Color("2a2350"))
-	v.add_child(t)
-	var sub := UI.label("Turn to glass. Fool The Original.", 20, Color.WHITE)
-	sub.add_theme_constant_override("outline_size", 6)
-	sub.add_theme_color_override("font_outline_color", Color("2a2350"))
+	var logo := UI.vbox(-14)
+	logo.pivot_offset = Vector2(0, 60)
+	logo.rotation = -0.035
+	var l1 := UI.outlined(UI.label("HIDE &", 62, Color.WHITE, true), 16, Color("1b1a6b"))
+	var l2 := UI.outlined(UI.label("CLONE", 92, Color("ffc928"), true), 18, Color("1b1a6b"))
+	logo.add_child(l1)
+	logo.add_child(l2)
+	v.add_child(logo)
+	var sub := UI.outlined(UI.label("Turn to glass. Fool The Original.", 21, Color.WHITE), 7, Color("1b1a6b"))
 	v.add_child(sub)
 	var name_in := UI.input("Your name", main.player_name, 20)
 	name_in.max_length = 16
 	name_in.text_changed.connect(func(s: String) -> void: main.save_name(s))
 	v.add_child(name_in)
-	var play := UI.button("FIND A GAME", Color("ff5d8f"), 28, _lobbies)
+	var play := UI.button("FIND A GAME", Color("ff4f8b"), 28, _lobbies)
 	play.grab_focus.call_deferred()
 	v.add_child(play)
-	v.add_child(UI.button("CREATE GAME", Color("5e8bff"), 28, _create))
-	v.add_child(UI.button("BUILD A MAP", Color("00b894"), 28, func() -> void: main.open_builder({})))
+	v.add_child(UI.button("CREATE GAME", Color("3d7bff"), 28, _create))
+	v.add_child(UI.button("BUILD A MAP", Color("14bf8e"), 28, func() -> void: main.open_builder({})))
 	var row := UI.hbox()
 	var code := UI.input("Friend's code", "", 18)
 	code.max_length = 5
 	code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(code)
-	row.add_child(UI.button("JOIN", Color("8e6cff"), 18, func() -> void:
+	row.add_child(UI.button("JOIN", Color("8b5cff"), 18, func() -> void:
 		if code.text.strip_edges().length() == 5: main.play_join(code.text)
 		else: msg_l.text = "Codes have 5 letters."))
 	v.add_child(row)
-	v.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("2a2350"), 14, func() -> void: main.open_site("home")))
+	v.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("1f2070"), 14, func() -> void: main.open_site("home")))
 
 # ---------- public lobbies ---------------------------------------------------
 func _lobbies() -> void:
@@ -102,8 +104,8 @@ func _lobbies() -> void:
 	sc.add_child(lobby_list)
 	v.add_child(sc)
 	var row := UI.hbox()
-	row.add_child(UI.button("BACK", Color("555b78"), 18, _home))
-	row.add_child(UI.button("CREATE YOUR OWN", Color("5e8bff"), 18, _create))
+	row.add_child(UI.button("BACK", Color("5a5f9e"), 18, _home))
+	row.add_child(UI.button("CREATE YOUR OWN", Color("3d7bff"), 18, _create))
 	v.add_child(row)
 	body.add_child(UI.center(p))
 	Net.request_list()
@@ -114,7 +116,7 @@ func _show_lobbies(list: Array) -> void:
 	for c in lobby_list.get_children(): c.queue_free()
 	if list.is_empty():
 		lobby_list.add_child(UI.label("No public games right now. Create one and invite a friend!", 18, Color("ffd166")))
-		lobby_list.add_child(UI.button("PLAY NOW WITH BOTS", Color("ff5d8f"), 20, func() -> void:
+		lobby_list.add_child(UI.button("PLAY NOW WITH BOTS", Color("ff4f8b"), 20, func() -> void:
 			var s: Dictionary = main.game.DEFAULTS.duplicate()
 			main.play_host(Maps.builtin[randi() % Maps.builtin.size()], s)))
 		return
@@ -126,7 +128,7 @@ func _show_lobbies(list: Array) -> void:
 		txt.add_child(UI.label("%s · %d/%d players · %s" % [l.get("map", "?"), int(l.get("players", 0)), int(l.get("max", 0)), l.get("phase", "")], 14, Color(0.8, 0.85, 1)))
 		row.add_child(txt)
 		var code := str(l.get("code", ""))
-		var b := UI.button("JOIN", Color("ff5d8f"), 18, func() -> void: main.play_join(code))
+		var b := UI.button("JOIN", Color("ff4f8b"), 18, func() -> void: main.play_join(code))
 		b.disabled = int(l.get("players", 0)) >= int(l.get("max", 0))
 		row.add_child(b)
 		lobby_list.add_child(row)
@@ -150,7 +152,7 @@ func _create() -> void:
 	var tabs := UI.hbox()
 	for f: Array in [["all", "All maps"], ["star", "Starred"], ["mine", "My maps"], ["played", "Played"]]:
 		var key: String = f[0]
-		tabs.add_child(UI.button(f[1], Color("3b4170"), 15, func() -> void:
+		tabs.add_child(UI.button(f[1], Color("3a3ea8"), 15, func() -> void:
 			_filter = key
 			_render_maps()))
 	v.add_child(tabs)
@@ -164,13 +166,13 @@ func _create() -> void:
 	_adv.visible = false
 	v.add_child(_adv)
 	var row := UI.hbox()
-	row.add_child(UI.button("BACK", Color("555b78"), 18, _home))
-	row.add_child(UI.button("ADVANCED", Color("3b4170"), 18, func() -> void: _adv.visible = not _adv.visible))
-	row.add_child(UI.button("BUILD NEW MAP", Color("00b894"), 18, func() -> void: main.open_builder({})))
+	row.add_child(UI.button("BACK", Color("5a5f9e"), 18, _home))
+	row.add_child(UI.button("ADVANCED", Color("3a3ea8"), 18, func() -> void: _adv.visible = not _adv.visible))
+	row.add_child(UI.button("BUILD NEW MAP", Color("14bf8e"), 18, func() -> void: main.open_builder({})))
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(sp)
-	var go := UI.button("CREATE", Color("ff5d8f"), 30, func() -> void:
+	var go := UI.button("CREATE", Color("ff4f8b"), 30, func() -> void:
 		if _selected.is_empty(): _selected = Maps.all_maps()[0]
 		main.play_host(_selected, settings))
 	go.grab_focus.call_deferred()
@@ -189,7 +191,7 @@ func _render_maps() -> void:
 		if _filter == "played" and src != "played": continue
 		var row := UI.hbox()
 		var sel: bool = str(_selected.get("id", "")) == str(m.get("id", ""))
-		var pick := UI.button(str(m.get("name", "Map")), Color("ff5d8f") if sel else Color("2c3158"), 17, func() -> void:
+		var pick := UI.button(str(m.get("name", "Map")), Color("ff4f8b") if sel else Color("2a2d82"), 17, func() -> void:
 			_selected = m
 			_render_maps())
 		pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -197,10 +199,10 @@ func _render_maps() -> void:
 		row.add_child(pick)
 		row.add_child(UI.label("%d objects · %s" % [(m.get("o", []) as Array).size(), {"builtin": "built-in", "mine": "my map", "played": "played"}.get(src, src)], 14, Color(0.8, 0.85, 1)))
 		var starred: bool = m.get("star", false)
-		row.add_child(UI.button("STARRED" if starred else "STAR", Color("c99a10") if starred else Color("3b4170"), 14, func() -> void:
+		row.add_child(UI.button("STARRED" if starred else "STAR", Color("c99a10") if starred else Color("3a3ea8"), 14, func() -> void:
 			Maps.set_star(m, not starred)
 			_render_maps()))
-		row.add_child(UI.button("EDIT", Color("3b4170"), 14, func() -> void: main.open_builder(m)))
+		row.add_child(UI.button("EDIT", Color("3a3ea8"), 14, func() -> void: main.open_builder(m)))
 		if src != "builtin":
 			var name_in := UI.input("Name", str(m.get("name", "")), 14)
 			name_in.custom_minimum_size = Vector2(150, 0)

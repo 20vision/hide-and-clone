@@ -26,7 +26,7 @@ await jp.screenshot({path:out+'/join_lobby.png'});
 await hp.evaluate(()=>0);
 console.log('asking host to start');
 // click START ROUND button on the host panel (mouse is free in the lobby)
-await hp.mouse.click(1060,355);await new Promise(r=>setTimeout(r,500));
+await hp.mouse.click(300,650);await new Promise(r=>setTimeout(r,500));await hp.keyboard.press("Enter");await new Promise(r=>setTimeout(r,500));
 await hp.screenshot({path:out+'/host_click.png'});
 r.round=await until('host',/round 1 start/,8000);
 if(r.round){await new Promise(r=>setTimeout(r,1500));await jp.screenshot({path:out+'/hide_join.png'});await hp.screenshot({path:out+'/hide_host.png'});
