@@ -98,7 +98,7 @@ func build(g: Node) -> void:
 	# player list (hold Tab)
 	board = UI.panel()
 	var bv := UI.vbox(6)
-	bv.add_child(UI.label("PLAYERS", 30, Color("ffc928"), true))
+	bv.add_child(UI.label("Players", 30, UI.VIOLET, true))
 	board_list = UI.vbox(4)
 	bv.add_child(board_list)
 	board.add_child(bv)
@@ -120,9 +120,9 @@ func build(g: Node) -> void:
 	pause = UI.panel()
 	var pv := UI.vbox(10)
 	pause.add_child(pv)
-	map_l = UI.label("", 24, Color.WHITE, true)
+	map_l = UI.label("", 24, UI.INK, true)
 	pv.add_child(map_l)
-	code_l = UI.label("", 20, Color("7ae582"), true)
+	code_l = UI.label("", 20, Color("0b9b74"), true)
 	pv.add_child(code_l)
 	copy_b = UI.button("COPY INVITE LINK", Color("14bf8e"), 18, _copy)
 	pv.add_child(copy_b)
@@ -145,8 +145,8 @@ func build(g: Node) -> void:
 	first_button = copy_b
 	sens_row.add_child(sl)
 	pv.add_child(sens_row)
-	pv.add_child(UI.button("LEAVE GAME", Color("5a5f9e"), 16, func() -> void: game._quit("")))
-	pv.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("1f2070"), 13, func() -> void: game.get_parent().open_site("panel")))
+	pv.add_child(UI.button("LEAVE GAME", Color("8f8cc0"), 16, func() -> void: game._quit("")))
+	pv.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("8f8cc0"), 13, func() -> void: game.get_parent().open_site("panel")))
 	pause.custom_minimum_size = Vector2(380, 0)
 	pause.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
 	var pwrap := MarginContainer.new()
@@ -354,7 +354,7 @@ func _names(parent: Container, names: Array, c: Color) -> void:
 	var f := HFlowContainer.new()
 	f.add_theme_constant_override("h_separation", 8)
 	f.add_theme_constant_override("v_separation", 8)
-	if names.is_empty(): f.add_child(UI.label("Nobody", 18, Color(1, 1, 1, 0.7)))
+	if names.is_empty(): f.add_child(UI.label("Nobody", 18, UI.MUTED))
 	for n: Variant in names: f.add_child(_chip(str(n), c))
 	parent.add_child(f)
 
@@ -363,16 +363,16 @@ func _render_end() -> void:
 	var r: Dictionary = game.result
 	if r.is_empty(): return
 	var side := str(r["side"])
-	var head := UI.outlined(UI.label("THE CLONES ESCAPED!" if side == "hiders" else "THE ORIGINAL WINS!", 42, Color("ffc928"), true), 10, Color("1b1a6b"))
+	var head := UI.outlined(UI.label("THE CLONES ESCAPED!" if side == "hiders" else "THE ORIGINAL WINS!", 42, UI.VIOLET, true), 0, Color.WHITE)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_v.add_child(head)
-	end_v.add_child(UI.label("Winners", 22, Color("7de39a"), true))
+	end_v.add_child(UI.label("Winners", 22, Color("0b9b74"), true))
 	_names(end_v, r["winners"], Color("149a63"))
-	end_v.add_child(UI.label("Eliminated", 22, Color("ff8fa8"), true))
+	end_v.add_child(UI.label("Eliminated", 22, Color("e0457b"), true))
 	_names(end_v, r["out"], Color("b83a5e"))
-	end_timer = UI.label("", 16, Color(1, 1, 1, 0.85))
+	end_timer = UI.label("", 16, UI.MUTED)
 	end_timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_v.add_child(end_timer)
-	var by := UI.label("Made by MyClawn: real AI clones that work for you. Open the menu for the link.", 14, Color(1, 1, 1, 0.65))
+	var by := UI.label("Made by MyClawn: real AI clones that work for you. Open the menu for the link.", 14, UI.MUTED)
 	by.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_v.add_child(by)

@@ -4,11 +4,16 @@ extends Node
 var menu_layer: CanvasLayer
 var hud: CanvasLayer
 var builder: Node3D
-var backdrop: Node3D
 var menu: Control
 var player_name := "Clone"
 
 func _ready() -> void:
+	var beat := Timer.new()
+	beat.wait_time = 60.0
+	beat.autostart = true
+	beat.timeout.connect(_beat)
+	add_child(beat)
+	_beat.call_deferred()
 	randomize()
 	ThemeDB.fallback_font = UI.body_font()
 	ThemeDB.get_default_theme().merge_with(UI.theme())
@@ -51,6 +56,19 @@ func save_name(n: String) -> void:
 	var f := FileAccess.open("user://name.txt", FileAccess.WRITE)
 	if f: f.store_string(player_name)
 
+## Every minute: who is online, on what. The dashboard counts these.
+func _beat() -> void:
+	track("clone_online", {"platform": platform(), "state": "playing" if game.active else "menu"})
+
+func platform() -> String:
+	if OS.has_feature("web"):
+		var ua := str(JavaScriptBridge.eval("navigator.userAgent"))
+		if ua.contains("Xbox"): return "xbox"
+		if ua.contains("PlayStation"): return "playstation"
+		if ua.contains("Steam Deck") or ua.contains("Valve"): return "steam"
+		return "web"
+	return OS.get_name().to_lower()
+
 func track(ev: String, props: Dictionary) -> void:
 	if not OS.has_feature("web"): return
 	JavaScriptBridge.eval("window.track&&window.track(%s,%s)" % [JSON.stringify(ev), JSON.stringify(props)])
@@ -89,10 +107,6 @@ func _auto() -> void:
 
 func _show_menu() -> void:
 	_remove_builder()
-	backdrop = Node3D.new()
-	backdrop.set_script(load("res://scripts/backdrop.gd"))
-	add_child(backdrop)
-	backdrop.start()
 	menu_layer = CanvasLayer.new()
 	add_child(menu_layer)
 	menu = Control.new()
@@ -105,9 +119,6 @@ func _hide_menu() -> void:
 	if menu_layer:
 		menu_layer.queue_free()
 		menu_layer = null
-	if backdrop:
-		backdrop.queue_free()
-		backdrop = null
 
 func _remove_builder() -> void:
 	if builder:

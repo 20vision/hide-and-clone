@@ -15,6 +15,9 @@ static func body_font() -> Font:
 	return _body
 
 static var _theme: Theme
+const INK := Color("1f1d52")
+const MUTED := Color("6d6b96")
+const VIOLET := Color("7c4dff")
 
 ## Global look for dropdowns, sliders, checkboxes, scrollbars and tooltips.
 static func theme() -> Theme:
@@ -22,26 +25,26 @@ static func theme() -> Theme:
 	var t := Theme.new()
 	t.default_font = body_font()
 	var field := style(Color(1, 1, 1, 0.97), 14)
-	var field_h := style(Color(1, 1, 1), 14, Color("ffc928"), 3)
+	var field_h := style(Color(1, 1, 1), 14, VIOLET, 3)
 	for k: String in ["normal", "pressed", "disabled"]: t.set_stylebox(k, "OptionButton", field)
 	t.set_stylebox("hover", "OptionButton", field_h)
 	t.set_stylebox("focus", "OptionButton", field_h)
-	for k: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: t.set_color(k, "OptionButton", Color("1a1b55"))
+	for k: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]: t.set_color(k, "OptionButton", INK)
 	var pop := style(Color(1, 1, 1), 16)
 	pop.shadow_color = Color(0.02, 0.02, 0.2, 0.4)
 	pop.shadow_size = 12
 	t.set_stylebox("panel", "PopupMenu", pop)
-	t.set_stylebox("hover", "PopupMenu", style(Color("ffc928"), 10))
-	t.set_color("font_color", "PopupMenu", Color("1a1b55"))
-	t.set_color("font_hover_color", "PopupMenu", Color("1a1b55"))
+	t.set_stylebox("hover", "PopupMenu", style(Color("e6dcff"), 10))
+	t.set_color("font_color", "PopupMenu", INK)
+	t.set_color("font_hover_color", "PopupMenu", INK)
 	t.set_font_size("font_size", "PopupMenu", 16)
 	var track := StyleBoxFlat.new()
-	track.bg_color = Color(1, 1, 1, 0.22)
+	track.bg_color = Color(0.12, 0.11, 0.32, 0.12)
 	track.set_corner_radius_all(6)
 	track.content_margin_top = 5
 	track.content_margin_bottom = 5
 	var fill := StyleBoxFlat.new()
-	fill.bg_color = Color("ffc928")
+	fill.bg_color = VIOLET
 	fill.set_corner_radius_all(6)
 	fill.content_margin_top = 5
 	fill.content_margin_bottom = 5
@@ -51,24 +54,24 @@ static func theme() -> Theme:
 	var fs := StyleBoxFlat.new()
 	fs.draw_center = false
 	fs.set_border_width_all(2)
-	fs.border_color = Color.WHITE
+	fs.border_color = VIOLET
 	fs.set_corner_radius_all(10)
 	fs.set_expand_margin_all(5)
 	t.set_stylebox("focus", "HSlider", fs)
-	t.set_icon("grabber", "HSlider", _dot(22, Color.WHITE))
-	t.set_icon("grabber_highlight", "HSlider", _dot(24, Color("ffe27a")))
-	t.set_color("font_color", "CheckBox", Color.WHITE)
-	t.set_color("font_hover_color", "CheckBox", Color("ffe27a"))
-	t.set_color("font_pressed_color", "CheckBox", Color.WHITE)
-	t.set_color("font_focus_color", "CheckBox", Color("ffe27a"))
+	t.set_icon("grabber", "HSlider", _dot(22, VIOLET))
+	t.set_icon("grabber_highlight", "HSlider", _dot(24, Color("ff4f8b")))
+	t.set_color("font_color", "CheckBox", INK)
+	t.set_color("font_hover_color", "CheckBox", VIOLET)
+	t.set_color("font_pressed_color", "CheckBox", INK)
+	t.set_color("font_focus_color", "CheckBox", VIOLET)
 	t.set_font_size("font_size", "CheckBox", 16)
 	var thin := StyleBoxFlat.new()
-	thin.bg_color = Color(1, 1, 1, 0.1)
+	thin.bg_color = Color(0.12, 0.11, 0.32, 0.06)
 	thin.set_corner_radius_all(6)
 	thin.content_margin_left = 5
 	thin.content_margin_right = 5
 	var grab := StyleBoxFlat.new()
-	grab.bg_color = Color(1, 1, 1, 0.55)
+	grab.bg_color = Color(0.12, 0.11, 0.32, 0.3)
 	grab.set_corner_radius_all(6)
 	t.set_stylebox("scroll", "VScrollBar", thin)
 	t.set_stylebox("grabber", "VScrollBar", grab)
@@ -102,18 +105,16 @@ static func style(c: Color, r := 18, border := Color(0, 0, 0, 0), bw := 0) -> St
 	s.anti_aliasing = true
 	return s
 
-static func _chunky(c: Color, depth: int, offset := 0) -> StyleBoxFlat:
-	var s := style(c, 18)
-	s.border_color = c.darkened(0.32)
-	s.border_width_bottom = depth
-	s.content_margin_bottom = 9.0 + depth - offset
-	s.content_margin_top = 9.0 + offset
-	s.shadow_color = Color(0.03, 0.03, 0.2, 0.28)
-	s.shadow_size = 6
-	s.shadow_offset = Vector2(0, 3)
+static func _soft(c: Color, glow: float, press := 0) -> StyleBoxFlat:
+	var s := style(c, 16)
+	s.content_margin_top = 11.0 + press
+	s.content_margin_bottom = 11.0 - press
+	s.shadow_color = Color(c.r, c.g, c.b, glow)
+	s.shadow_size = 12 if glow > 0.0 else 0
+	s.shadow_offset = Vector2(0, 5)
 	return s
 
-static func label(text: String, size := 18, color := Color.WHITE, title := false) -> Label:
+static func label(text: String, size := 18, color := INK, title := false) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
@@ -134,23 +135,75 @@ static func button(text: String, color := Color("3d7bff"), size := 18, cb: Calla
 	for k: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		b.add_theme_color_override(k, Color.WHITE)
 	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.5))
-	var depth := 6 if size >= 18 else 4
-	b.add_theme_stylebox_override("normal", _chunky(color, depth))
-	b.add_theme_stylebox_override("hover", _chunky(color.lightened(0.12), depth))
-	b.add_theme_stylebox_override("pressed", _chunky(color.darkened(0.08), 1, depth - 1))
-	b.add_theme_stylebox_override("disabled", _chunky(color.darkened(0.35), depth))
-	var fo := _chunky(color.lightened(0.1), depth)
-	fo.border_color = Color.WHITE
+	b.add_theme_stylebox_override("normal", _soft(color, 0.28))
+	b.add_theme_stylebox_override("hover", _soft(color.lightened(0.1), 0.42))
+	b.add_theme_stylebox_override("pressed", _soft(color.darkened(0.08), 0.1, 2))
+	b.add_theme_stylebox_override("disabled", _soft(Color(color.r, color.g, color.b, 0.4), 0.0))
+	var fo := _soft(color.lightened(0.06), 0.5)
+	fo.border_color = INK
 	fo.set_border_width_all(3)
-	fo.border_width_bottom = depth
 	b.add_theme_stylebox_override("focus", fo)
 	if cb.is_valid(): b.pressed.connect(cb)
 	return b
 
-static func panel(c := Color(0.1, 0.11, 0.38, 0.95)) -> PanelContainer:
+## One row of the main menu: white at rest, fills with its colour when selected.
+static func menu_item(text: String, color: Color, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(0, 62)
+	b.add_theme_font_size_override("font_size", 25)
+	b.add_theme_font_override("font", title_font())
+	b.add_theme_color_override("font_color", INK)
+	for k: String in ["font_hover_color", "font_focus_color", "font_pressed_color", "font_hover_pressed_color"]: b.add_theme_color_override(k, Color.WHITE)
+	var rest := style(Color(1, 1, 1, 0.88), 18)
+	rest.content_margin_left = 26
+	rest.border_width_left = 8
+	rest.border_color = color
+	rest.shadow_color = Color(0.3, 0.22, 0.6, 0.12)
+	rest.shadow_size = 8
+	rest.shadow_offset = Vector2(0, 3)
+	b.add_theme_stylebox_override("normal", rest)
+	var on := style(color, 18)
+	on.content_margin_left = 38
+	on.shadow_color = Color(color.r, color.g, color.b, 0.5)
+	on.shadow_size = 16
+	on.shadow_offset = Vector2(0, 6)
+	b.add_theme_stylebox_override("hover", on)
+	b.add_theme_stylebox_override("focus", on)
+	var pr := on.duplicate() as StyleBoxFlat
+	pr.bg_color = color.darkened(0.1)
+	b.add_theme_stylebox_override("pressed", pr)
+	b.pressed.connect(cb)
+	return b
+
+## Soft moving colour wash used behind every menu screen.
+static func backdrop() -> ColorRect:
+	var r := ColorRect.new()
+	full(r)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+vec3 blob(vec3 base, vec3 c, vec2 uv, vec2 p, float r){ return mix(base, c, smoothstep(r, 0.0, distance(uv, p)) * 0.85); }
+void fragment(){
+	float t = TIME * 0.12;
+	vec2 uv = UV * vec2(1.7, 1.0);
+	vec3 col = vec3(0.97, 0.96, 1.0);
+	col = blob(col, vec3(1.0, 0.76, 0.86), uv, vec2(0.25 + sin(t) * 0.12, 0.15 + cos(t * 1.3) * 0.1), 0.85);
+	col = blob(col, vec3(0.68, 0.84, 1.0), uv, vec2(1.45 + cos(t * 0.8) * 0.14, 0.2 + sin(t) * 0.12), 0.9);
+	col = blob(col, vec3(1.0, 0.92, 0.62), uv, vec2(0.3 + cos(t * 0.9) * 0.15, 1.0 + sin(t * 1.1) * 0.08), 0.7);
+	col = blob(col, vec3(0.72, 0.96, 0.84), uv, vec2(1.35 + sin(t * 1.2) * 0.15, 1.0 + cos(t) * 0.08), 0.75);
+	COLOR = vec4(col, 1.0);
+}"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	r.material = m
+	return r
+
+static func panel(c := Color(1, 1, 1, 0.97)) -> PanelContainer:
 	var p := PanelContainer.new()
-	var s := style(c, 28, Color(1, 1, 1, 0.16), 2)
-	s.shadow_color = Color(0.02, 0.02, 0.18, 0.45)
+	var s := style(c, 28)
+	s.shadow_color = Color(0.3, 0.22, 0.6, 0.22)
 	s.shadow_size = 22
 	s.shadow_offset = Vector2(0, 8)
 	s.content_margin_left = 24
@@ -187,11 +240,11 @@ static func input(placeholder: String, text := "", size := 18) -> LineEdit:
 	e.text = text
 	e.add_theme_font_size_override("font_size", size)
 	e.add_theme_font_override("font", body_font())
-	e.add_theme_stylebox_override("normal", style(Color(1, 1, 1, 0.96), 14))
-	e.add_theme_stylebox_override("focus", style(Color(1, 1, 1), 14, Color("ffc928"), 3))
-	e.add_theme_color_override("font_color", Color("1a1b55"))
+	e.add_theme_stylebox_override("normal", style(Color(1, 1, 1, 0.96), 14, Color(0.12, 0.11, 0.32, 0.14), 2))
+	e.add_theme_stylebox_override("focus", style(Color(1, 1, 1), 14, VIOLET, 3))
+	e.add_theme_color_override("font_color", INK)
 	e.add_theme_color_override("font_placeholder_color", Color(0.1, 0.1, 0.35, 0.5))
-	e.add_theme_color_override("caret_color", Color("ff4f8b"))
+	e.add_theme_color_override("caret_color", VIOLET)
 	return e
 
 static func full(c: Control) -> Control:

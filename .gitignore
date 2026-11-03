@@ -4,3 +4,4 @@ server/node_modules/
 .godot/
 *.import
 fonts_src/
+usage.log
