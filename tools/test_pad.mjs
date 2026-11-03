@@ -12,7 +12,7 @@ const W=ms=>new Promise(r=>setTimeout(r,ms));const S=n=>p.screenshot({path:`${ou
 const B={A:0,B:1,X:2,Y:3,LB:4,RB:5,LT:6,RT:7,VIEW:8,MENU:9,UP:12,DOWN:13,LEFT:14,RIGHT:15};
 const press=async(b,ms=140,after=600)=>{await p.evaluate(([i])=>{const x=window.__pad.buttons[i];x.pressed=true;x.value=1;window.__pad.timestamp++},[B[b]]);await W(ms);await p.evaluate(([i])=>{const x=window.__pad.buttons[i];x.pressed=false;x.value=0;window.__pad.timestamp++},[B[b]]);await W(after)};
 const axis=async(i,v,ms)=>{await p.evaluate(([i,v])=>{window.__pad.axes[i]=v;window.__pad.timestamp++},[i,v]);await W(ms);await p.evaluate(([i])=>{window.__pad.axes[i]=0;window.__pad.timestamp++},[i]);await W(300)};
-await p.goto(`${base}?lobby=${encodeURIComponent(ws)}`);await W(10000);await S('pad_home');
+await p.goto(`${base}?lobby=${encodeURIComponent(ws)}`);await W(14000);await S("pad_home");
 await press('DOWN');await press('A',140,1500);await S('pad_create');await press('A',140,13000);await S('pad_game');
 await press('Y',140,1200);console.log('started',lg.some(l=>/round 1 start/.test(l)));
 await axis(1,-1,1500);await S('pad_hide');
