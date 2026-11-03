@@ -48,6 +48,7 @@ var _start_at := -1.0
 var _spec_idx := 0
 var _shots: Array[Dictionary] = []
 var _last_sec := 0
+var _host_clock := 0.0
 
 func _ready() -> void:
 	multiplayer.peer_connected.connect(_on_peer)
@@ -333,7 +334,11 @@ func _start_round() -> void:
 	get_parent().track("clone_round_start", {"players": ids.size(), "humans": _humans(), "round": round_no})
 	print("[hc] round %d start players=%d" % [round_no, ids.size()])
 
-func _host_tick(delta: float) -> void:
+func _host_tick(_frame_delta: float) -> void:
+	# Real time, so a slow host still ends rounds on schedule.
+	var now := Time.get_ticks_msec() / 1000.0
+	var delta := clampf(now - _host_clock, 0.0, 1.0) if _host_clock > 0.0 else 0.0
+	_host_clock = now
 	if phase == "lobby":
 		var ready_n := 0
 		for p: Dictionary in players.values():
@@ -611,7 +616,7 @@ func _process(delta: float) -> void:
 		_dbg_t -= delta
 		if _dbg_t <= 0.0 and me():
 			_dbg_t = 1.0
-			print("[hc] pos %.1f %.1f %.1f speed %.2f phase %s mouse %d" % [me().global_position.x, me().global_position.y, me().global_position.z, me().speed_mult, phase, Input.mouse_mode])
+			print("[hc] pos %.1f %.1f %.1f speed %.2f phase %s mouse %d fps %d draws %d" % [me().global_position.x, me().global_position.y, me().global_position.z, me().speed_mult, phase, Input.mouse_mode, Engine.get_frames_per_second(), RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
 	_input_tick()
 	_camera_tick(delta)
 	_pose_t -= delta

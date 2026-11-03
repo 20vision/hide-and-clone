@@ -198,11 +198,11 @@ static func _scenery(parent: Node3D, size: float, f: Array) -> void:
 	var cloud2 := StandardMaterial3D.new()
 	cloud2.albedo_color = Color(0.9, 0.94, 1.0)
 	cloud2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	for i in 16:
+	for i in 11:
 		var a := rng.randf() * TAU
 		var r := size * 0.5 + rng.randf_range(50.0, 230.0)
 		var c := Vector3(cos(a) * r, rng.randf_range(42.0, 88.0), sin(a) * r)
-		for j in 5:
+		for j in 4:
 			var mi := MeshInstance3D.new()
 			mi.mesh = sphere
 			mi.material_override = cloud2 if j == 0 else cloud
