@@ -6,6 +6,7 @@ const FLOORS := {
 	"wood": [Color("c69363"), Color("b58255"), 2, Color("4ea5f0"), Color("ffe9d0"), Color("8ba85a")],
 	"sand": [Color("e4cd92"), Color("d6bc7f"), 3, Color("35a5ee"), Color("e4f6ff"), Color("d2b878")],
 	"snow": [Color("e5eef6"), Color("d3e0ec"), 3, Color("6cb4ee"), Color("edf7ff"), Color("c9d9e6")],
+	"studio": [Color("bdb7d4"), Color("b9b3d0"), 3, Color("8f8aa8"), Color("c3bedb"), Color("c3bedb")],
 	"night": [Color("3c4670"), Color("323b62"), 1, Color("0d1238"), Color("3c3f86"), Color("232a50")],
 }
 const FLOOR_SHADER := """
@@ -85,8 +86,9 @@ static func make_ground(parent: Node3D, map: Dictionary) -> void:
 		wall.position = d * (size * 0.5 + 0.5) + Vector3.UP * 30.0
 		ground.add_child(wall)
 	parent.add_child(ground)
-	_rim(parent, size)
-	_scenery(parent, size, f)
+	if kind != "studio":
+		_rim(parent, size)
+		_scenery(parent, size, f)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -38, 0)
 	sun.light_color = Color(1.0, 0.96, 0.88)
@@ -113,7 +115,7 @@ static func make_ground(parent: Node3D, map: Dictionary) -> void:
 	env.ambient_light_color = Color(0.8, 0.88, 1.0)
 	env.ambient_light_energy = 0.3 if kind != "night" else 0.34
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	env.fog_enabled = true
+	env.fog_enabled = kind != "studio"
 	env.fog_mode = Environment.FOG_MODE_EXPONENTIAL
 	env.fog_light_color = f[4]
 	env.fog_density = 0.0028

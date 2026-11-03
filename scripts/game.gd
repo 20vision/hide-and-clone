@@ -68,12 +68,12 @@ func _ready() -> void:
 	rig = Node3D.new()
 	add_child(rig)
 	arm = SpringArm3D.new()
-	arm.spring_length = 4.6
+	arm.spring_length = 4.3
 	arm.collision_mask = 1
 	var sph := SphereShape3D.new()
 	sph.radius = 0.2
 	arm.shape = sph
-	arm.position = Vector3(0.0, 1.5, 0.0)
+	arm.position = Vector3(0.0, 1.62, 0.0)
 	rig.add_child(arm)
 	cam = Camera3D.new()
 	cam.fov = 72.0
@@ -550,6 +550,7 @@ func fx_hit(id: int) -> void:
 	if c:
 		FX.splash(self, c.global_position + Vector3.UP * 0.8, COLORS[int(players[id]["color"]) % COLORS.size()], 12)
 		Sfx.play(self, "pop", -4.0)
+		c.hit_react()
 		if id == uid() and hud: hud.flash_hit()
 
 @rpc("authority", "call_local", "reliable")
@@ -748,7 +749,7 @@ func _camera_tick(delta: float) -> void:
 	_shake = move_toward(_shake, 0.0, delta * 7.0)
 	rig.rotation.y = _yaw
 	arm.rotation.x = _pitch + _shake * _shake * 0.016
-	cam.position.x = 0.62
+	cam.position.x = 0.78
 	cam.rotation.z = sin(_shake * 14.0) * _shake * 0.006
 	if m: arm.clear_excluded_objects()
 	if m: arm.add_excluded_object(m.get_rid())
