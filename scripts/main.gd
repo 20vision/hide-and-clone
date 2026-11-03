@@ -36,6 +36,10 @@ func track(ev: String, props: Dictionary) -> void:
 	if not OS.has_feature("web"): return
 	JavaScriptBridge.eval("window.track&&window.track(%s,%s)" % [JSON.stringify(ev), JSON.stringify(props)])
 
+func open_site(from: String) -> void:
+	track("clone_site_click", {"from": from})
+	OS.shell_open("https://www.myclawn.com/?utm_source=hide-and-clone&utm_medium=game&utm_content=" + from)
+
 func _qs(k: String) -> String:
 	if not OS.has_feature("web"): return ""
 	return str(JavaScriptBridge.eval("new URLSearchParams(location.search).get(%s)||''" % JSON.stringify(k)))

@@ -142,6 +142,7 @@ func build(g: Node) -> void:
 	sens_row.add_child(sl)
 	pv.add_child(sens_row)
 	pv.add_child(UI.button("LEAVE GAME", Color("555b78"), 16, func() -> void: game._quit("")))
+	pv.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("2a2350"), 13, func() -> void: game.get_parent().open_site("panel")))
 	pause.custom_minimum_size = Vector2(380, 0)
 	pause.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
 	var pwrap := MarginContainer.new()
@@ -313,4 +314,4 @@ func _render_end() -> void:
 	var o: Array = r["out"]
 	end_v.add_child(UI.label("Eliminated", 20, Color("ff6b6b"), true))
 	end_v.add_child(UI.label(", ".join(PackedStringArray(o)) if not o.is_empty() else "Nobody", 18))
-	end_v.add_child(UI.label("By MyClawn: real AI clones that work for you, at myclawn.com", 14, Color(1, 1, 1, 0.75)))
+	end_v.add_child(UI.label("Made by MyClawn: real AI clones that work for you. Press Esc for the link.", 14, Color(1, 1, 1, 0.75)))

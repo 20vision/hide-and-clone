@@ -82,6 +82,7 @@ func _home() -> void:
 		if code.text.strip_edges().length() == 5: main.play_join(code.text)
 		else: msg_l.text = "Codes have 5 letters."))
 	v.add_child(row)
+	v.add_child(UI.button("WANT A REAL CLONE? MYCLAWN.COM", Color("2a2350"), 14, func() -> void: main.open_site("home")))
 
 # ---------- public lobbies ---------------------------------------------------
 func _lobbies() -> void:

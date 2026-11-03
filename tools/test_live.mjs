@@ -12,7 +12,7 @@ const a=await launch(),b=await launch(),c=await launch();
 const t0=Date.now();const h=await page(a,'h');await h.goto(base+'?auto=host&bots=2&ai=1&hide=3&map=3');const r={};r.t='';
 r.host=await until('h',/world ready/,120000);console.log('host load s',(Date.now()-t0)/1000);
 // third player browses the public list, like a stranger
-const k=await page(c,'k');await k.goto(base);await W(25000);await k.mouse.click(290,358);await W(3500);await k.screenshot({path:out+'/live_public_list.png'});
+const k=await page(c,'k');await k.goto(base);await W(25000);await k.mouse.click(290,358);await W(3500);await k.screenshot({path:out+'/live_public_list.png'});console.log('list shot');
 await k.mouse.click(965,172);await W(300);
 // click JOIN on first row
 r.stranger=await until('k',/world ready/,60000);await k.screenshot({path:out+'/live_stranger.png'});
