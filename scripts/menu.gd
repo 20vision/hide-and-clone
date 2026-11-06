@@ -427,4 +427,9 @@ func _advanced() -> Control:
 	c2.button_pressed = bool(settings["autostart"])
 	c2.toggled.connect(func(b: bool) -> void: settings["autostart"] = b)
 	g.add_child(c2)
+	var c3 := CheckBox.new()
+	c3.text = "Infection: un-cloned hiders join the Originals"
+	c3.button_pressed = bool(settings.get("infect", false))
+	c3.toggled.connect(func(b: bool) -> void: settings["infect"] = b)
+	g.add_child(c3)
 	return g
