@@ -30,6 +30,7 @@ var play_b: Button
 var pad_menu := false
 var end_timer: Label
 var _cross_kick := 0.0
+var touch: Control
 
 func build(g: Node) -> void:
 	game = g
@@ -82,6 +83,11 @@ func build(g: Node) -> void:
 	cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	cross.draw.connect(_draw_cross)
 	root.add_child(cross)
+	touch = Control.new()
+	touch.set_script(load("res://scripts/touch.gd"))
+	touch.game = g
+	UI.full(touch)
+	root.add_child(touch)
 	hint = UI.label("", 16, Color(1, 1, 1, 0.95))
 	hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	hint.position.y = -34
@@ -163,7 +169,7 @@ func build(g: Node) -> void:
 
 func _capture() -> void:
 	if pad_menu: toggle_pad_menu(true)
-	if not game.using_pad: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if not game.using_pad and not game.using_touch: Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _copy() -> void:
 	if OS.has_feature("web"):
@@ -206,7 +212,7 @@ func toggle_pad_menu(from_start: bool) -> void:
 	if not pad_menu and not from_start: return
 	pad_menu = not pad_menu
 	game.menu_open = pad_menu
-	if pad_menu:
+	if pad_menu and not game.using_touch:
 		(start_b if start_b.visible else play_b).grab_focus()
 	elif get_viewport().gui_get_focus_owner():
 		get_viewport().gui_get_focus_owner().release_focus()
@@ -234,6 +240,7 @@ func _keys(pad_text: String, key_text: String) -> String:
 
 func _lobby_hint(captured: bool) -> String:
 	var host: bool = game._is_host()
+	if game.using_touch: return "Left thumb move  ·  Right thumb look  ·  II menu" + ("  ·  START to begin" if host else "")
 	if game.using_pad: return "Left stick move  ·  A jump  ·  View players  ·  Menu button menu" + ("  ·  Y start" if host else "")
 	if not captured: return "Click the map to play"
 	return "WASD move  ·  Space jump  ·  Tab players  ·  Esc menu" + ("  ·  Enter start" if host else "")
@@ -257,7 +264,7 @@ func tick(delta: float) -> void:
 			total += 1
 			if p["alive"]: left += 1
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	var pad: bool = game.using_pad
+	var pad: bool = game.using_pad or game.using_touch
 	game.menu_open = pad_menu
 	pause.get_parent().get_parent().visible = phase != "end" and (pad_menu if pad else not captured)
 	code_l.text = ("Invite code: " + Net.code) if Net.code != "" else "Solo game with bots"
@@ -306,6 +313,7 @@ func tick(delta: float) -> void:
 			count.text = ""
 			role.text = ""
 			hint.text = ""
+	if game.using_touch and phase != "lobby": hint.text = ""
 	end_panel.visible = phase == "end"
 	if phase == "end" and is_instance_valid(end_timer): end_timer.text = "Back to lobby in %d" % int(ceil(game.time_left))
 	var holding := Input.is_physical_key_pressed(KEY_TAB) or Input.is_joy_button_pressed(0, JOY_BUTTON_BACK)

@@ -53,6 +53,7 @@ var _host_clock := 0.0
 var _uid := 1
 var _shake := 0.0
 var using_pad := false
+var using_touch := OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
 var birdseye := false
 var menu_open := false
 var _slow_t := 0.0
@@ -743,7 +744,10 @@ func _input_tick() -> void:
 	var m := me()
 	if m == null or m.ai: return
 	var v := Vector2.ZERO
-	var blocked := using_pad and menu_open
+	var blocked := (using_pad or using_touch) and menu_open
+	if using_touch and not blocked and hud and hud.touch:
+		v += hud.touch.move
+		if hud.touch.jump_held and m.alive: m.want_jump = true
 	if not blocked:
 		if Input.is_physical_key_pressed(KEY_W): v.y -= 1.0
 		if Input.is_physical_key_pressed(KEY_S): v.y += 1.0
@@ -764,7 +768,18 @@ func _input_tick() -> void:
 	m.yaw_target = _yaw
 	m.aim_pitch = _pitch
 
+## Right-thumb drag from the touch overlay turns the camera.
+func touch_look(rel: Vector2) -> void:
+	_yaw -= rel.x * sens * 1.4
+	_pitch = clampf(_pitch - rel.y * sens * 1.4, -1.2, 0.6)
+
 func _input(e: InputEvent) -> void:
+	if e is InputEventScreenTouch:
+		using_touch = true
+		using_pad = false
+		return
+	if (e is InputEventMouseMotion or e is InputEventMouseButton) and e.device == InputEvent.DEVICE_ID_EMULATION: return
+	if e is InputEventMouseMotion or e is InputEventKey: using_touch = false
 	if e is InputEventJoypadButton or (e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.35):
 		using_pad = true
 		if active and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE: Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
@@ -774,6 +789,8 @@ func _input(e: InputEvent) -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not active: return
+	# taps also arrive as emulated mouse clicks; the touch overlay handles those
+	if (e is InputEventMouseMotion or e is InputEventMouseButton) and e.device == InputEvent.DEVICE_ID_EMULATION: return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		_yaw -= (e as InputEventMouseMotion).relative.x * sens
 		_pitch = clampf(_pitch - (e as InputEventMouseMotion).relative.y * sens, -1.2, 0.6)
