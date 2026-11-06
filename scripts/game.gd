@@ -6,6 +6,7 @@ const COLORS: Array[Color] = [Color("ff4f8b"), Color("2db8f5"), Color("ffc928"),
 const DEFAULTS := {
 	"hide_time": 20, "seek_time": 120, "hider_speed": 96, "visibility": 7, "hits": 2,
 	"cooldown": 0.5, "decoys": 2, "seekers": 1, "bots": 5, "max_players": 12, "public": true, "autostart": true,
+	"infect": false,
 }
 const BOT_NAMES: Array[String] = ["Bot Pip", "Bot Mo", "Bot Dot", "Bot Bean", "Bot Zip", "Bot Lux", "Bot Nib", "Bot Ody", "Bot Tam", "Bot Rue", "Bot Kit"]
 
@@ -375,6 +376,7 @@ func _start_round() -> void:
 		p["decoys"] = int(settings["decoys"])
 		p["tags"] = 0
 		p["out_at"] = -1.0
+		p["infected"] = false
 		p["out_by"] = ""
 	for i in n: players[ids[i]]["seeker"] = true
 	if force_role != "":
@@ -446,11 +448,14 @@ func _finish(side: String) -> void:
 	var hid: Array = []
 	for p: Dictionary in players.values():
 		if not p["in_round"]: continue
-		if not p["seeker"]:
-			var found: bool = not p["alive"] and float(p["out_at"]) >= 0.0
+		var infected: bool = p.get("infected", false)
+		if not p["seeker"] or infected:
+			var found: bool = (not p["alive"] or infected) and float(p["out_at"]) >= 0.0
 			var secs := seek_total - float(p["out_at"]) if found else seek_done
 			hid.append([str(p["name"]), int(round(secs)), str(p.get("out_by", "")) if found else ""])
-		if p["seeker"]:
+		if infected:
+			out.append(p["name"])
+		elif p["seeker"]:
 			if side == "seekers": winners.append(p["name"])
 			else: out.append(p["name"] + " (Original)")
 		elif p["alive"]:
@@ -472,6 +477,7 @@ func _push_state(new_round := false, to_lobby := false) -> void:
 @rpc("authority", "call_local", "reliable")
 func apply_state(s: Dictionary) -> void:
 	var prev_phase := phase
+	var was_seeker: bool = players.get(uid(), {}).get("seeker", false)
 	players = s["players"]
 	phase = s["phase"]
 	time_left = s["time"]
@@ -499,6 +505,8 @@ func apply_state(s: Dictionary) -> void:
 	if s["new_round"]: _cool = 0.0
 	if prev_phase != "end" and phase == "end": Sfx.play(self, "win", -4.0)
 	if hud: hud.on_state(prev_phase, phase)
+	if hud and phase == "seek" and not was_seeker and players.get(uid(), {}).get("infected", false):
+		hud.toast("You are an Original now! Find the others")
 
 func _sync_nodes() -> void:
 	var my_id := uid()
@@ -576,10 +584,15 @@ func _apply_shot(shooter: int, from: Vector3, to: Vector3, target: int) -> void:
 	if t["seeker"] or not t["alive"]: return
 	t["hp"] = int(t["hp"]) - 1
 	if int(t["hp"]) <= 0:
-		t["alive"] = false
 		t["out_at"] = time_left
 		t["out_by"] = str(s["name"])
 		s["tags"] = int(s["tags"]) + 1
+		if bool(settings.get("infect", false)):
+			# Infection mode: the un-cloned hider picks up a wand and hunts the rest.
+			t["seeker"] = true
+			t["infected"] = true
+		else:
+			t["alive"] = false
 		fx_elim.rpc(target, str(s["name"]))
 		print("[hc] eliminated %s" % t["name"])
 		_push_state()
