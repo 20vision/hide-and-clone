@@ -166,7 +166,7 @@ func _lobby_info() -> Dictionary:
 
 func _new_player(id: int, n: String, bot: bool) -> Dictionary:
 	var idx := players.size() % COLORS.size()
-	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": idx, "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "spawn": [0.0, 1.0, 0.0], "in_round": false}
+	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": idx, "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "out_by": "", "spawn": [0.0, 1.0, 0.0], "in_round": false}
 
 func _add_bot(i: int) -> void:
 	var id := 100000 + i
@@ -350,6 +350,7 @@ func _start_round() -> void:
 		p["decoys"] = int(settings["decoys"])
 		p["tags"] = 0
 		p["out_at"] = -1.0
+		p["out_by"] = ""
 	for i in n: players[ids[i]]["seeker"] = true
 	if force_role != "":
 		for id: int in ids: players[id]["seeker"] = (id == 1) == (force_role == "seeker")
@@ -414,8 +415,16 @@ func _check_end() -> void:
 func _finish(side: String) -> void:
 	var winners: Array = []
 	var out: Array = []
+	# Seconds each hider lasted in the seek phase, and who found them ("" = escaped).
+	var seek_total := float(settings["seek_time"])
+	var seek_done := seek_total - maxf(time_left, 0.0) if phase == "seek" else 0.0
+	var hid: Array = []
 	for p: Dictionary in players.values():
 		if not p["in_round"]: continue
+		if not p["seeker"]:
+			var found := not p["alive"] and float(p["out_at"]) >= 0.0
+			var secs := seek_total - float(p["out_at"]) if found else seek_done
+			hid.append([str(p["name"]), int(round(secs)), str(p.get("out_by", "")) if found else ""])
 		if p["seeker"]:
 			if side == "seekers": winners.append(p["name"])
 			else: out.append(p["name"] + " (Original)")
@@ -425,7 +434,8 @@ func _finish(side: String) -> void:
 			out.append(p["name"])
 	phase = "end"
 	time_left = 9.0
-	result = {"side": side, "winners": winners, "out": out}
+	hid.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1])
+	result = {"side": side, "winners": winners, "out": out, "hid": hid}
 	_push_state()
 	Net.update(_lobby_info())
 	get_parent().track("clone_round_end", {"side": side, "players": players.size(), "humans": _humans()})
@@ -543,6 +553,7 @@ func _apply_shot(shooter: int, from: Vector3, to: Vector3, target: int) -> void:
 	if int(t["hp"]) <= 0:
 		t["alive"] = false
 		t["out_at"] = time_left
+		t["out_by"] = str(s["name"])
 		s["tags"] = int(s["tags"]) + 1
 		fx_elim.rpc(target, str(s["name"]))
 		print("[hc] eliminated %s" % t["name"])
