@@ -207,14 +207,27 @@ func hello(n: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	var clean_name := n.strip_edges().substr(0, 16)
 	if clean_name == "": clean_name = "Clone"
-	# A real player takes the seat of a bot.
-	for k: int in players.keys():
-		if players[k]["bot"] and _humans() + _bot_count() >= int(settings["max_players"]):
-			players.erase(k)
-			if nodes.has(k):
-				(nodes[k] as Node).queue_free()
-				nodes.erase(k)
-			break
+	# A real player takes the seat of a bot. Prefer a bot that sits out this round,
+	# then a hider, so a mid-round join never silently removes the Original.
+	if _humans() + _bot_count() >= int(settings["max_players"]):
+		var seat := -1
+		var best := 3
+		for k: int in players.keys():
+			var p: Dictionary = players[k]
+			if not p["bot"]: continue
+			var rank := 0 if not p["in_round"] else (1 if not p["seeker"] else 2)
+			if rank < best:
+				best = rank
+				seat = k
+		if seat != -1:
+			players.erase(seat)
+			if nodes.has(seat):
+				(nodes[seat] as Node).queue_free()
+				nodes.erase(seat)
+			# The removed bot may have been the last hider or the only seeker.
+			if phase == "hide" or phase == "seek":
+				_check_end()
+				_push_state()
 	players[id] = _new_player(id, clean_name, false)
 	var raw := JSON.stringify(map).to_utf8_buffer()
 	var gz := raw.compress(FileAccess.COMPRESSION_GZIP)
