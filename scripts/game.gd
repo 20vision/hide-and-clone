@@ -447,7 +447,7 @@ func _finish(side: String) -> void:
 	for p: Dictionary in players.values():
 		if not p["in_round"]: continue
 		if not p["seeker"]:
-			var found := not p["alive"] and float(p["out_at"]) >= 0.0
+			var found: bool = not p["alive"] and float(p["out_at"]) >= 0.0
 			var secs := seek_total - float(p["out_at"]) if found else seek_done
 			hid.append([str(p["name"]), int(round(secs)), str(p.get("out_by", "")) if found else ""])
 		if p["seeker"]:
