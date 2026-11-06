@@ -165,8 +165,20 @@ func _lobby_info() -> Dictionary:
 	return {"name": my_name + "'s game", "map": str(map.get("name", "")), "players": maxi(humans, 1), "max": int(settings["max_players"]), "phase": phase, "public": bool(settings["public"]), "v": 1}
 
 func _new_player(id: int, n: String, bot: bool) -> Dictionary:
-	var idx := players.size() % COLORS.size()
-	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": idx, "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "spawn": [0.0, 1.0, 0.0], "in_round": false}
+	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": _free_color(), "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "spawn": [0.0, 1.0, 0.0], "in_round": false}
+
+## The least used color, lowest first, so someone joining after a player left
+## (or taking a bot's seat) does not get a color another clone already has.
+func _free_color() -> int:
+	var used: Array[int] = []
+	used.resize(COLORS.size())
+	used.fill(0)
+	for p: Dictionary in players.values():
+		used[int(p["color"]) % COLORS.size()] += 1
+	var best := 0
+	for i in COLORS.size():
+		if used[i] < used[best]: best = i
+	return best
 
 func _add_bot(i: int) -> void:
 	var id := 100000 + i
