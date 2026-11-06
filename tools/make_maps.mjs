@@ -1,4 +1,4 @@
-// Writes the four built-in maps from real catalog models, laid out by hand.
+// Writes the built-in maps from real catalog models, laid out by hand.
 import fs from 'fs';
 const cat=JSON.parse(fs.readFileSync('catalog.json'));
 let seed=11;const R=(a,b)=>{seed=(seed*16807)%2147483647;return a+(seed/2147483647)*(b-a)};const pick=a=>a[Math.floor(R(0,a.length))];
@@ -6,7 +6,7 @@ const has=id=>{const[p,n]=id.split('/');if(!cat[p]||!cat[p].n.includes(n))throw 
 const S=id=>cat[id.split('/')[0]].s;
 const O=(id,x,z,yaw=0,s=1,y=0)=>[has(id),+x.toFixed(2),+y.toFixed(2),+z.toFixed(2),+yaw.toFixed(3),+(S(id)*s).toFixed(3)];
 const Q=[0,Math.PI/2,Math.PI,-Math.PI/2];
-const f=n=>'furniture-kit/'+n, sk=n=>'survival-kit/'+n, fa=n=>'factory-kit/'+n, sp=n=>'space-station-kit/'+n, na=n=>'nature-kit/'+n, sb=n=>'city-kit-suburban/'+n, ro=n=>'city-kit-roads/'+n, cm=n=>'city-kit-commercial/'+n, ca=n=>'car-kit/'+n;
+const f=n=>'furniture-kit/'+n, sk=n=>'survival-kit/'+n, fa=n=>'factory-kit/'+n, sp=n=>'space-station-kit/'+n, na=n=>'nature-kit/'+n, sb=n=>'city-kit-suburban/'+n, ro=n=>'city-kit-roads/'+n, cm=n=>'city-kit-commercial/'+n, ca=n=>'car-kit/'+n, gy=n=>'graveyard-kit/'+n;
 // ---- Cozy House: one shared wall grid, four rooms in a ring (no dead ends), front and back door
 const house=[];const U=2.4,N=10;
 const hw=(z,doors)=>{for(let i=0;i<N;i++)house.push(O(f(doors.includes(i)?'wallDoorwayWide':(z!==0&&i%3==1?'wallWindow':'wall')),-12+i*U,z,0));};
@@ -45,5 +45,19 @@ for(let i=0;i<28;i++){const a=R(0,6.28),r=R(9,30);forest.push(O(pick(rocks),Math
 for(let i=0;i<34;i++){const a=R(0,6.28),r=R(5,20);forest.push(O(pick(bush),Math.cos(a)*r,Math.sin(a)*r,R(0,6.28),R(1.2,2)));}
 [[0,-8,0],[8,-3,-1.2],[-8,-3,1.2],[5,7,-2.4],[-5,7,2.4]].forEach(([x,z,y],i)=>forest.push(O(sk(i%2?'tent-canvas':'tent'),x,z,y,.9)));
 forest.push(O(sk('campfire-pit'),0,0,0,.9),O(sk('tree-log'),2.8,1.4,1),O(sk('tree-log'),-2.8,1.4,-1),O(sk('chest'),8,3),O(sk('barrel'),-8,3),O(sk('box-large'),-10.5,0),O(sk('workbench'),10.5,0,-1.5),O(sk('bedroll'),1.5,-5));
-for(const [file,name,floor,size,o] of [['clone_lab','Clone Lab','lab',46,lab],['tiny_town','Tiny Town','grass',72,town],['cozy_house','Cozy House','wood',30,house],['forest_camp','Forest Camp','grass',64,forest]]){
+// ---- Spooky Graveyard: fenced yard at night, rows of graves around a big crypt, pines and pumpkins at the edges
+const grave=[];const stones=['gravestone-bevel','gravestone-broken','gravestone-cross','gravestone-cross-large','gravestone-decorative','gravestone-roof','gravestone-round','gravestone-wide'].map(gy);
+for(let i=-9;i<9;i++){const x=i*2+1;grave.push(O(gy(R(0,1)>.85?'iron-fence-damaged':'iron-fence'),x,-18,0));if(Math.abs(x)>2)grave.push(O(gy('iron-fence'),x,18,0)); // open gate in the south fence
+ grave.push(O(gy('iron-fence'),-18,x,-Math.PI/2));if(x!==-7)grave.push(O(gy(R(0,1)>.85?'iron-fence-damaged':'iron-fence'),18,x,-Math.PI/2));} // and a broken gap in the east fence
+grave.push(O(gy('debris'),19,-7,0));
+for(const [x,z] of [[-18,-18],[18,-18],[-18,18],[18,18],[-2,18],[2,18]])grave.push(O(gy('pillar-square'),x,z));
+grave.push(O(gy('crypt-large'),0,-11,0),O(gy('crypt-small'),-11,-11,Math.PI/4),O(gy('crypt'),11,-11,-Math.PI/4),O(gy('fire-basket'),-3.2,-7),O(gy('fire-basket'),3.2,-7));
+for(const sx of [-1,1])for(let r=0;r<3;r++)for(let k=0;k<3;k++){const x=sx*(5+k*3.4),z=-1+r*4.6;if(R(0,1)<.15)continue;
+ grave.push(O(pick(stones),x+R(-.2,.2),z,R(-.15,.15)));if(R(0,1)>.6)grave.push(O(gy('grave'),x,z+1.3,0));else if(R(0,1)>.7)grave.push(O(pick([gy('pumpkin'),gy('pumpkin-carved'),gy('candle-multiple'),gy('urn-round')]),x+.9,z+.8,R(0,6.28)));}
+grave.push(O(gy('coffin'),-2,4,Math.PI/2),O(gy('coffin-old'),2,6,Math.PI/2+.3),O(gy('shovel-dirt'),3.2,5,1),O(gy('altar-stone'),0,-5.4),O(gy('lightpost-double'),0,13),O(gy('lantern-glass'),-1.4,10.6));
+for(const [x,z,y] of [[-9,15,0],[9,15,0],[-15,6,Math.PI/2],[15,6,-Math.PI/2]])grave.push(O(gy('bench'),x,z,y));
+for(let i=0;i<22;i++){const e=pick([0,1,2,3]),t=R(-15.5,15.5),d=R(14.6,16.2);const [x,z]=[[t,-d],[t,d],[-d,t],[d,t]][e];if(Math.abs(x)<4&&z>10)continue;
+ grave.push(O(gy(pick(['pine','pine-crooked','pine-fall','pine-fall-crooked'])),x,z,R(0,6.28),R(1.2,1.7)));}
+for(let i=0;i<14;i++){const a=R(0,6.28),r=R(6,15);grave.push(O(gy(pick(['pumpkin','pumpkin-tall','pumpkin-carved','pumpkin-tall-carved','rocks','rocks-tall','hay-bale','debris','trunk','urn-square'])),Math.cos(a)*r,Math.sin(a)*r,R(0,6.28)));}
+for(const [file,name,floor,size,o] of [['clone_lab','Clone Lab','lab',46,lab],['tiny_town','Tiny Town','grass',72,town],['cozy_house','Cozy House','wood',30,house],['forest_camp','Forest Camp','grass',64,forest],['spooky_graveyard','Spooky Graveyard','night',40,grave]]){
  fs.writeFileSync(`maps/${file}.json`,JSON.stringify({id:file,name,floor,size,o}));console.log(file,o.length);}
