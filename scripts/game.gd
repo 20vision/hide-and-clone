@@ -165,8 +165,20 @@ func _lobby_info() -> Dictionary:
 	return {"name": my_name + "'s game", "map": str(map.get("name", "")), "players": maxi(humans, 1), "max": int(settings["max_players"]), "phase": phase, "public": bool(settings["public"]), "v": 1}
 
 func _new_player(id: int, n: String, bot: bool) -> Dictionary:
-	var idx := players.size() % COLORS.size()
-	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": idx, "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "out_by": "", "spawn": [0.0, 1.0, 0.0], "in_round": false}
+	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": _free_color(), "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "out_by": "", "spawn": [0.0, 1.0, 0.0], "in_round": false}
+
+## The least used color, lowest first, so someone joining after a player left
+## (or taking a bot's seat) does not get a color another clone already has.
+func _free_color() -> int:
+	var used: Array[int] = []
+	used.resize(COLORS.size())
+	used.fill(0)
+	for p: Dictionary in players.values():
+		used[int(p["color"]) % COLORS.size()] += 1
+	var best := 0
+	for i in COLORS.size():
+		if used[i] < used[best]: best = i
+	return best
 
 func _add_bot(i: int) -> void:
 	var id := 100000 + i
@@ -195,14 +207,27 @@ func hello(n: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	var clean_name := n.strip_edges().substr(0, 16)
 	if clean_name == "": clean_name = "Clone"
-	# A real player takes the seat of a bot.
-	for k: int in players.keys():
-		if players[k]["bot"] and _humans() + _bot_count() >= int(settings["max_players"]):
-			players.erase(k)
-			if nodes.has(k):
-				(nodes[k] as Node).queue_free()
-				nodes.erase(k)
-			break
+	# A real player takes the seat of a bot. Prefer a bot that sits out this round,
+	# then a hider, so a mid-round join never silently removes the Original.
+	if _humans() + _bot_count() >= int(settings["max_players"]):
+		var seat := -1
+		var best := 3
+		for k: int in players.keys():
+			var p: Dictionary = players[k]
+			if not p["bot"]: continue
+			var rank := 0 if not p["in_round"] else (1 if not p["seeker"] else 2)
+			if rank < best:
+				best = rank
+				seat = k
+		if seat != -1:
+			players.erase(seat)
+			if nodes.has(seat):
+				(nodes[seat] as Node).queue_free()
+				nodes.erase(seat)
+			# The removed bot may have been the last hider or the only seeker.
+			if phase == "hide" or phase == "seek":
+				_check_end()
+				_push_state()
 	players[id] = _new_player(id, clean_name, false)
 	var raw := JSON.stringify(map).to_utf8_buffer()
 	var gz := raw.compress(FileAccess.COMPRESSION_GZIP)
