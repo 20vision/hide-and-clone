@@ -6,7 +6,7 @@ var builtin: Array = []
 
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(DIR)
-	for f in ["clone_lab", "tiny_town", "cozy_house", "forest_camp"]:
+	for f in ["clone_lab", "tiny_town", "cozy_house", "forest_camp", "spooky_graveyard"]:
 		var t := FileAccess.get_file_as_string("res://maps/%s.json" % f)
 		if t != "":
 			var m: Variant = JSON.parse_string(t)

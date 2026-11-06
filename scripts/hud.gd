@@ -373,6 +373,17 @@ func _render_end() -> void:
 	_names(end_v, r["winners"], Color("149a63"))
 	end_v.add_child(UI.label("Eliminated", 22, Color("e0457b"), true))
 	_names(end_v, r["out"], Color("b83a5e"))
+	var hid: Array = r.get("hid", [])
+	if not hid.is_empty():
+		end_v.add_child(UI.label("Hide times", 22, UI.VIOLET, true))
+		for h: Array in hid:
+			var row := UI.hbox()
+			var nl := UI.label(str(h[0]), 16)
+			nl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			row.add_child(nl)
+			var by := str(h[2])
+			row.add_child(UI.label("%s · %s" % [_mmss(float(h[1])), "found by " + by if by != "" else "escaped"], 16, Color("b83a5e") if by != "" else Color("0b9b74")))
+			end_v.add_child(row)
 	end_timer = UI.label("", 16, UI.MUTED)
 	end_timer.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	end_v.add_child(end_timer)
