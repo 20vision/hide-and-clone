@@ -6,6 +6,7 @@ const COLORS: Array[Color] = [Color("ff4f8b"), Color("2db8f5"), Color("ffc928"),
 const DEFAULTS := {
 	"hide_time": 20, "seek_time": 120, "hider_speed": 96, "visibility": 7, "hits": 2,
 	"cooldown": 0.5, "decoys": 2, "seekers": 1, "bots": 5, "max_players": 12, "public": true, "autostart": true,
+	"infect": false,
 }
 const BOT_NAMES: Array[String] = ["Bot Pip", "Bot Mo", "Bot Dot", "Bot Bean", "Bot Zip", "Bot Lux", "Bot Nib", "Bot Ody", "Bot Tam", "Bot Rue", "Bot Kit"]
 
@@ -166,8 +167,20 @@ func _lobby_info() -> Dictionary:
 	return {"name": my_name + "'s game", "map": str(map.get("name", "")), "players": maxi(humans, 1), "max": int(settings["max_players"]), "phase": phase, "public": bool(settings["public"]), "v": 1}
 
 func _new_player(id: int, n: String, bot: bool) -> Dictionary:
-	var idx := players.size() % COLORS.size()
-	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": idx, "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "spawn": [0.0, 1.0, 0.0], "in_round": false}
+	return {"id": id, "name": n.substr(0, 16), "bot": bot, "color": _free_color(), "alive": false, "seeker": false, "hp": 0, "decoys": 0, "ready": bot, "tags": 0, "out_at": -1.0, "out_by": "", "spawn": [0.0, 1.0, 0.0], "in_round": false}
+
+## The least used color, lowest first, so someone joining after a player left
+## (or taking a bot's seat) does not get a color another clone already has.
+func _free_color() -> int:
+	var used: Array[int] = []
+	used.resize(COLORS.size())
+	used.fill(0)
+	for p: Dictionary in players.values():
+		used[int(p["color"]) % COLORS.size()] += 1
+	var best := 0
+	for i in COLORS.size():
+		if used[i] < used[best]: best = i
+	return best
 
 func _add_bot(i: int) -> void:
 	var id := 100000 + i
@@ -196,14 +209,27 @@ func hello(n: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	var clean_name := n.strip_edges().substr(0, 16)
 	if clean_name == "": clean_name = "Clone"
-	# A real player takes the seat of a bot.
-	for k: int in players.keys():
-		if players[k]["bot"] and _humans() + _bot_count() >= int(settings["max_players"]):
-			players.erase(k)
-			if nodes.has(k):
-				(nodes[k] as Node).queue_free()
-				nodes.erase(k)
-			break
+	# A real player takes the seat of a bot. Prefer a bot that sits out this round,
+	# then a hider, so a mid-round join never silently removes the Original.
+	if _humans() + _bot_count() >= int(settings["max_players"]):
+		var seat := -1
+		var best := 3
+		for k: int in players.keys():
+			var p: Dictionary = players[k]
+			if not p["bot"]: continue
+			var rank := 0 if not p["in_round"] else (1 if not p["seeker"] else 2)
+			if rank < best:
+				best = rank
+				seat = k
+		if seat != -1:
+			players.erase(seat)
+			if nodes.has(seat):
+				(nodes[seat] as Node).queue_free()
+				nodes.erase(seat)
+			# The removed bot may have been the last hider or the only seeker.
+			if phase == "hide" or phase == "seek":
+				_check_end()
+				_push_state()
 	players[id] = _new_player(id, clean_name, false)
 	var raw := JSON.stringify(map).to_utf8_buffer()
 	var gz := raw.compress(FileAccess.COMPRESSION_GZIP)
@@ -351,6 +377,8 @@ func _start_round() -> void:
 		p["decoys"] = int(settings["decoys"])
 		p["tags"] = 0
 		p["out_at"] = -1.0
+		p["infected"] = false
+		p["out_by"] = ""
 	for i in n: players[ids[i]]["seeker"] = true
 	if force_role != "":
 		for id: int in ids: players[id]["seeker"] = (id == 1) == (force_role == "seeker")
@@ -415,9 +443,20 @@ func _check_end() -> void:
 func _finish(side: String) -> void:
 	var winners: Array = []
 	var out: Array = []
+	# Seconds each hider lasted in the seek phase, and who found them ("" = escaped).
+	var seek_total := float(settings["seek_time"])
+	var seek_done := seek_total - maxf(time_left, 0.0) if phase == "seek" else 0.0
+	var hid: Array = []
 	for p: Dictionary in players.values():
 		if not p["in_round"]: continue
-		if p["seeker"]:
+		var infected: bool = p.get("infected", false)
+		if not p["seeker"] or infected:
+			var found: bool = (not p["alive"] or infected) and float(p["out_at"]) >= 0.0
+			var secs := seek_total - float(p["out_at"]) if found else seek_done
+			hid.append([str(p["name"]), int(round(secs)), str(p.get("out_by", "")) if found else ""])
+		if infected:
+			out.append(p["name"])
+		elif p["seeker"]:
 			if side == "seekers": winners.append(p["name"])
 			else: out.append(p["name"] + " (Original)")
 		elif p["alive"]:
@@ -426,7 +465,8 @@ func _finish(side: String) -> void:
 			out.append(p["name"])
 	phase = "end"
 	time_left = 9.0
-	result = {"side": side, "winners": winners, "out": out}
+	hid.sort_custom(func(a: Array, b: Array) -> bool: return a[1] > b[1])
+	result = {"side": side, "winners": winners, "out": out, "hid": hid}
 	_push_state()
 	Net.update(_lobby_info())
 	get_parent().track("clone_round_end", {"side": side, "players": players.size(), "humans": _humans()})
@@ -438,6 +478,7 @@ func _push_state(new_round := false, to_lobby := false) -> void:
 @rpc("authority", "call_local", "reliable")
 func apply_state(s: Dictionary) -> void:
 	var prev_phase := phase
+	var was_seeker: bool = players.get(uid(), {}).get("seeker", false)
 	players = s["players"]
 	phase = s["phase"]
 	time_left = s["time"]
@@ -465,6 +506,8 @@ func apply_state(s: Dictionary) -> void:
 	if s["new_round"]: _cool = 0.0
 	if prev_phase != "end" and phase == "end": Sfx.play(self, "win", -4.0)
 	if hud: hud.on_state(prev_phase, phase)
+	if hud and phase == "seek" and not was_seeker and players.get(uid(), {}).get("infected", false):
+		hud.toast("You are an Original now! Find the others")
 
 func _sync_nodes() -> void:
 	var my_id := uid()
@@ -542,9 +585,15 @@ func _apply_shot(shooter: int, from: Vector3, to: Vector3, target: int) -> void:
 	if t["seeker"] or not t["alive"]: return
 	t["hp"] = int(t["hp"]) - 1
 	if int(t["hp"]) <= 0:
-		t["alive"] = false
 		t["out_at"] = time_left
+		t["out_by"] = str(s["name"])
 		s["tags"] = int(s["tags"]) + 1
+		if bool(settings.get("infect", false)):
+			# Infection mode: the un-cloned hider picks up a wand and hunts the rest.
+			t["seeker"] = true
+			t["infected"] = true
+		else:
+			t["alive"] = false
 		fx_elim.rpc(target, str(s["name"]))
 		print("[hc] eliminated %s" % t["name"])
 		_push_state()
