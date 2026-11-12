@@ -27,3 +27,8 @@ Keep your tab open: if the host leaves, the game ends for everyone.
 - `tools/build_catalog.mjs` prepares the CC0 models, `tools/test_web.mjs` plays a full networked round in two browsers.
 - Windows (Microsoft Store): `tools/build_msix_dir.sh` lays out `build/msix`, which `makeappx pack` turns into the Store package. Native tests: `tools/test_native.mjs`, `tools/test_native_input.sh`, `tools/test_native_pad.sh`.
 By MyClawn (https://www.myclawn.com).
+
+## Related
+
+- [Play it in your browser](https://20vision.github.io/hide-and-clone/?utm_source=github&utm_medium=probe&utm_campaign=hide-and-clone)
+- [myclawn-city](https://github.com/20vision/myclawn-city): open-world browser game
